@@ -1,0 +1,51 @@
+{
+  "package.json": {
+    "name": "pharmaceutical-intelligence-system",
+    "version": "1.0.0",
+    "description": "Professional pharmaceutical intelligence dashboard with live API integration",
+    "main": "pages/index.js",
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint"
+    },
+    "dependencies": {
+      "next": "14.0.0",
+      "react": "18.2.0",
+      "react-dom": "18.2.0",
+      "lucide-react": "^0.263.1"
+    },
+    "devDependencies": {
+      "eslint": "^8.57.0",
+      "eslint-config-next": "14.0.0",
+      "tailwindcss": "^3.3.0",
+      "autoprefixer": "^10.4.16",
+      "postcss": "^8.4.31"
+    }
+  },
+  "next.config.js": {
+    "content": "/** @type {import('next').NextConfig} */\nconst nextConfig = {\n  reactStrictMode: true,\n  env: {\n    CUSTOM_KEY: process.env.CUSTOM_KEY,\n  },\n}\n\nmodule.exports = nextConfig"
+  },
+  "tailwind.config.js": {
+    "content": "/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n  content: [\n    './pages/**/*.{js,ts,jsx,tsx,mdx}',\n    './components/**/*.{js,ts,jsx,tsx,mdx}',\n    './app/**/*.{js,ts,jsx,tsx,mdx}',\n  ],\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n}"
+  },
+  "postcss.config.js": {
+    "content": "module.exports = {\n  plugins: {\n    tailwindcss: {},\n    autoprefixer: {},\n  },\n}"
+  },
+  "pages/_app.js": {
+    "content": "import '../styles/globals.css'\n\nexport default function App({ Component, pageProps }) {\n  return <Component {...pageProps} />\n}"
+  },
+  "pages/index.js": {
+    "content": "import PharmaceuticalIntelligenceSystem from '../components/PharmaceuticalIntelligenceSystem'\n\nexport default function Home() {\n  return <PharmaceuticalIntelligenceSystem />\n}"
+  },
+  "styles/globals.css": {
+    "content": "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n* {\n  box-sizing: border-box;\n  padding: 0;\n  margin: 0;\n}\n\nhtml,\nbody {\n  max-width: 100vw;\n  overflow-x: hidden;\n}\n\nbody {\n  color: rgb(var(--foreground-rgb));\n  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb)))\n    rgb(var(--background-start-rgb));\n}\n\na {\n  color: inherit;\n  text-decoration: none;\n}\n\n@media (prefers-color-scheme: dark) {\n  html {\n    color-scheme: dark;\n  }\n}"
+  },
+  "README.md": {
+    "content": "# Professional Pharmaceutical Intelligence System\n\nA production-ready pharmaceutical intelligence dashboard with live API integration to major pharmaceutical databases.\n\n## Features\n\n- **Live API Integration**: ClinicalTrials.gov, Open Targets, ClinVar, Human Protein Atlas\n- **CSV Export**: Professional CSV export with all captured data\n- **Data Visualization**: Interactive charts and graphs\n- **Clickable Links**: Direct links to original studies and data\n- **Responsive Design**: Works on all devices\n- **Professional UI**: Modern, clean interface\n- **Error Handling**: Robust error management\n- **Rate Limiting**: Proper API rate limiting\n\n## Deployment\n\n### Local Development\n\n1. Clone the repository\n2. Install dependencies: `npm install`\n3. Run development server: `npm run dev`\n4. Open http://localhost:3000\n\n### Production Deployment on Vercel\n\n1. Push code to GitHub\n2. Connect GitHub repo to Vercel\n3. Deploy automatically\n\n## API Endpoints\n\n- `/api/search/clinicaltrials` - Search clinical trials\n- `/api/search/opentargets` - Search target-disease associations\n- `/api/search/clinvar` - Search genetic variants\n- `/api/search/hpa` - Search protein expression data\n- `/api/search` - Combined search across all databases\n\n## Usage\n\n1. Enter your pharmaceutical intelligence query\n2. Select specific database or search all\n3. View results with clickable links\n4. Download results as CSV\n5. View data visualization\n\n## Technology Stack\n\n- **Frontend**: Next.js, React, Tailwind CSS\n- **Backend**: Vercel Serverless Functions\n- **APIs**: REST and GraphQL integrations\n- **Deployment**: Vercel\n\n## Professional Features\n\n- Production-ready code\n- Comprehensive error handling\n- CORS configuration\n- Rate limiting\n- Data transformation\n- CSV export functionality\n- Professional UI/UX\n- Responsive design\n- SEO optimized\n"
+  },
+  "vercel.json": {
+    "content": "{\n  \"functions\": {\n    \"api/**/*.js\": {\n      \"runtime\": \"nodejs18.x\"\n    }\n  },\n  \"headers\": [\n    {\n      \"source\": \"/api/(.*)\",\n      \"headers\": [\n        { \"key\": \"Access-Control-Allow-Origin\", \"value\": \"*\" },\n        { \"key\": \"Access-Control-Allow-Methods\", \"value\": \"GET, POST, PUT, DELETE, OPTIONS\" },\n        { \"key\": \"Access-Control-Allow-Headers\", \"value\": \"Content-Type, Authorization\" }\n      ]\n    }\n  ]\n}"
+  }
+}
