@@ -908,8 +908,8 @@ const PharmaceuticalIntelligenceSystem = () => {
           <div style={styles.logo}>
             <div style={styles.logoIcon}>⚗️</div>
             <div>
-              <h1 style={styles.title}>GRID Pharma Intelligence</h1>
-              <p style={styles.subtitle}>Prathik KV • ExcelraI • Unlimited Results</p>
+              <h1 style={styles.title}> 🧬 IntelliGrid 🧬 </h1>
+              <p style={styles.subtitle}> • Prathik KV • </p>
             </div>
           </div>
           <div>
