@@ -1,10 +1,17 @@
 {
   "name": "pharmaceutical-intelligence-system",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "IntelliGRID - Global Research Intelligence Database with 11+ biomedical databases",
+  "keywords": ["pharmaceutical", "intelligence", "biomedical", "research", "database", "clinical-trials", "drug-discovery"],
+  "author": "IntelliGRID Team",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint",
+    "export": "next export",
+    "analyze": "cross-env ANALYZE=true next build"
   },
   "dependencies": {
     "next": "14.0.0",
@@ -15,6 +22,20 @@
   "devDependencies": {
     "tailwindcss": "^3.3.0",
     "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.31"
+    "postcss": "^8.4.31",
+    "eslint": "^8.50.0",
+    "eslint-config-next": "14.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prathikkv/pharma-intelligence.git"
+  },
+  "homepage": "https://pharma-intelligence.vercel.app",
+  "bugs": {
+    "url": "https://github.com/prathikkv/pharma-intelligence/issues"
   }
 }
