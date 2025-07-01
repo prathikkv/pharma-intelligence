@@ -29,6 +29,407 @@ const PharmaceuticalIntelligenceSystem = () => {
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [expandedResult, setExpandedResult] = useState(null);
 
+    // Comprehensive inline styles
+    const styles = {
+        container: {
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: '20px',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            backgroundColor: '#ffffff',
+            minHeight: '100vh'
+        },
+        header: {
+            marginBottom: '30px',
+            textAlign: 'center'
+        },
+        title: {
+            fontSize: '2.5rem',
+            fontWeight: 'bold',
+            color: '#1a202c',
+            marginBottom: '8px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+        },
+        subtitle: {
+            fontSize: '1.1rem',
+            color: '#4a5568',
+            marginBottom: '20px'
+        },
+        tabContainer: {
+            borderBottom: '2px solid #e2e8f0',
+            marginBottom: '30px'
+        },
+        tabNav: {
+            display: 'flex',
+            gap: '20px',
+            marginBottom: '-2px'
+        },
+        tab: {
+            padding: '12px 20px',
+            border: 'none',
+            background: 'none',
+            fontSize: '1rem',
+            fontWeight: '500',
+            cursor: 'pointer',
+            borderBottom: '2px solid transparent',
+            color: '#718096',
+            transition: 'all 0.2s ease'
+        },
+        activeTab: {
+            padding: '12px 20px',
+            border: 'none',
+            background: 'none',
+            fontSize: '1rem',
+            fontWeight: '500',
+            cursor: 'pointer',
+            borderBottom: '2px solid #4299e1',
+            color: '#4299e1'
+        },
+        sectionTitle: {
+            fontSize: '1.5rem',
+            fontWeight: '600',
+            color: '#2d3748',
+            marginBottom: '20px'
+        },
+        databaseGrid: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '15px',
+            marginBottom: '30px'
+        },
+        databaseCard: {
+            padding: '16px',
+            border: '2px solid #e2e8f0',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            backgroundColor: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+        },
+        databaseCardSelected: {
+            padding: '16px',
+            border: '2px solid #4299e1',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            backgroundColor: '#ebf8ff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            boxShadow: '0 4px 12px rgba(66, 153, 225, 0.15)'
+        },
+        databaseIcon: {
+            fontSize: '2rem'
+        },
+        databaseInfo: {
+            flex: 1
+        },
+        databaseName: {
+            fontSize: '1rem',
+            fontWeight: '600',
+            color: '#2d3748',
+            marginBottom: '4px'
+        },
+        databaseDesc: {
+            fontSize: '0.875rem',
+            color: '#718096',
+            marginBottom: '4px'
+        },
+        databaseCategory: {
+            fontSize: '0.75rem',
+            color: '#a0aec0',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em'
+        },
+        checkbox: {
+            width: '20px',
+            height: '20px',
+            borderRadius: '4px',
+            border: '2px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#ffffff'
+        },
+        checkboxSelected: {
+            width: '20px',
+            height: '20px',
+            borderRadius: '4px',
+            border: '2px solid #4299e1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#4299e1',
+            color: '#ffffff'
+        },
+        buttonGroup: {
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            marginTop: '20px'
+        },
+        button: {
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+        },
+        primaryButton: {
+            padding: '12px 24px',
+            backgroundColor: '#4299e1',
+            color: '#ffffff',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '1rem',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        },
+        secondaryButton: {
+            padding: '10px 20px',
+            backgroundColor: '#718096',
+            color: '#ffffff',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+        },
+        searchContainer: {
+            padding: '24px',
+            backgroundColor: '#f7fafc',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            marginBottom: '30px'
+        },
+        searchInputContainer: {
+            display: 'flex',
+            gap: '12px',
+            marginBottom: '16px'
+        },
+        searchInput: {
+            flex: 1,
+            padding: '12px 16px 12px 40px',
+            border: '2px solid #e2e8f0',
+            borderRadius: '8px',
+            fontSize: '1rem',
+            outline: 'none',
+            transition: 'border-color 0.2s ease',
+            position: 'relative'
+        },
+        searchInputWrapper: {
+            position: 'relative',
+            flex: 1
+        },
+        searchIcon: {
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#a0aec0'
+        },
+        errorContainer: {
+            padding: '16px',
+            backgroundColor: '#fed7d7',
+            border: '1px solid #feb2b2',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        },
+        errorText: {
+            color: '#c53030',
+            fontSize: '0.875rem'
+        },
+        analyticsContainer: {
+            padding: '24px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '12px',
+            marginBottom: '30px',
+            color: '#ffffff'
+        },
+        analyticsTitle: {
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        },
+        analyticsGrid: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '20px'
+        },
+        analyticsSection: {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            padding: '16px',
+            borderRadius: '8px'
+        },
+        analyticsSectionTitle: {
+            fontSize: '1rem',
+            fontWeight: '500',
+            marginBottom: '12px',
+            color: '#ffffff'
+        },
+        analyticsItem: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '6px 0',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+        },
+        analyticsLabel: {
+            fontSize: '0.875rem',
+            color: 'rgba(255, 255, 255, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+        },
+        analyticsValue: {
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            color: '#ffffff'
+        },
+        resultsContainer: {
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            marginBottom: '30px'
+        },
+        resultsHeader: {
+            padding: '20px',
+            backgroundColor: '#f7fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+        },
+        resultsTitle: {
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            color: '#2d3748'
+        },
+        resultsControls: {
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'center'
+        },
+        controlInput: {
+            padding: '8px 12px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '6px',
+            fontSize: '0.875rem'
+        },
+        table: {
+            width: '100%',
+            borderCollapse: 'collapse'
+        },
+        tableHeader: {
+            backgroundColor: '#f7fafc',
+            borderBottom: '1px solid #e2e8f0'
+        },
+        tableHeaderCell: {
+            padding: '12px 16px',
+            textAlign: 'left',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+            color: '#4a5568',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em'
+        },
+        tableRow: {
+            borderBottom: '1px solid #f1f5f9',
+            transition: 'background-color 0.2s ease'
+        },
+        tableCell: {
+            padding: '16px',
+            fontSize: '0.875rem',
+            color: '#2d3748'
+        },
+        statusBadge: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '0.75rem',
+            fontWeight: '600'
+        },
+        statusActive: {
+            backgroundColor: '#c6f6d5',
+            color: '#22543d'
+        },
+        statusCompleted: {
+            backgroundColor: '#bee3f8',
+            color: '#2a4365'
+        },
+        statusRecruiting: {
+            backgroundColor: '#faf089',
+            color: '#744210'
+        },
+        statusDefault: {
+            backgroundColor: '#e2e8f0',
+            color: '#4a5568'
+        },
+        actionButton: {
+            padding: '6px 12px',
+            border: 'none',
+            borderRadius: '4px',
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+        },
+        bookmarkButton: {
+            padding: '4px',
+            border: 'none',
+            background: 'none',
+            cursor: 'pointer',
+            color: '#a0aec0',
+            transition: 'color 0.2s ease'
+        },
+        bookmarkButtonActive: {
+            padding: '4px',
+            border: 'none',
+            background: 'none',
+            cursor: 'pointer',
+            color: '#f6e05e',
+            transition: 'color 0.2s ease'
+        },
+        emptyState: {
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#718096'
+        },
+        emptyStateIcon: {
+            fontSize: '3rem',
+            marginBottom: '16px',
+            color: '#a0aec0'
+        },
+        badge: {
+            display: 'inline-block',
+            padding: '4px 8px',
+            backgroundColor: '#e2e8f0',
+            color: '#4a5568',
+            borderRadius: '12px',
+            fontSize: '0.75rem',
+            fontWeight: '500'
+        }
+    };
+
     // Database Configuration - Production Ready (10 databases)
     const databases = [
         { 
@@ -267,25 +668,6 @@ const PharmaceuticalIntelligenceSystem = () => {
             filtered = filtered.filter(item => item._database === databaseFilter);
         }
 
-        // Apply advanced filters
-        if (filters.phase) {
-            filtered = filtered.filter(item => 
-                item.phase && item.phase.toLowerCase().includes(filters.phase.toLowerCase())
-            );
-        }
-
-        if (filters.status) {
-            filtered = filtered.filter(item => 
-                item.status && item.status.toLowerCase().includes(filters.status.toLowerCase())
-            );
-        }
-
-        if (filters.sponsor) {
-            filtered = filtered.filter(item => 
-                item.sponsor && item.sponsor.toLowerCase().includes(filters.sponsor.toLowerCase())
-            );
-        }
-
         // Apply sorting
         if (sortConfig.key) {
             filtered.sort((a, b) => {
@@ -300,7 +682,7 @@ const PharmaceuticalIntelligenceSystem = () => {
         }
 
         return filtered;
-    }, [results, searchWithinResults, databaseFilter, filters, sortConfig]);
+    }, [results, searchWithinResults, databaseFilter, sortConfig]);
 
     // Analytics and Insights
     const analytics = useMemo(() => {
@@ -373,68 +755,31 @@ const PharmaceuticalIntelligenceSystem = () => {
         link.click();
     }, [filteredAndSortedResults]);
 
-    // Enhanced Logs Display
-    const renderLogsDisplay = () => {
-        if (!showLogs || searchLogs.length === 0) return null;
-
-        return (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Search History & Logs</h3>
-                    <button
-                        onClick={() => setShowLogs(false)}
-                        className="text-gray-500 hover:text-gray-700"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-                
-                <div className="space-y-3 max-h-60 overflow-y-auto">
-                    {searchLogs.map((log) => (
-                        <div key={log.id} className="p-3 bg-white rounded border">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-2">
-                                    {log.status === 'running' && <Loader2 className="animate-spin text-blue-500" size={16} />}
-                                    {log.status === 'completed' && <CheckCircle className="text-green-500" size={16} />}
-                                    {log.status === 'failed' && <AlertCircle className="text-red-500" size={16} />}
-                                    <span className="font-medium">{log.query}</span>
-                                </div>
-                                <span className="text-sm text-gray-500">
-                                    {new Date(log.timestamp).toLocaleTimeString()}
-                                </span>
-                            </div>
-                            
-                            {log.resultsCount !== undefined && (
-                                <div className="mt-2 text-sm text-gray-600">
-                                    Found {log.resultsCount} results in {log.duration}ms
-                                </div>
-                            )}
-                            
-                            {log.error && (
-                                <div className="mt-2 text-sm text-red-600">
-                                    Error: {log.error}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
+    // Get status badge style
+    const getStatusBadgeStyle = (status) => {
+        const baseStyle = styles.statusBadge;
+        switch (status?.toLowerCase()) {
+            case 'recruiting':
+            case 'active':
+                return { ...baseStyle, ...styles.statusActive };
+            case 'completed':
+                return { ...baseStyle, ...styles.statusCompleted };
+            case 'not yet recruiting':
+                return { ...baseStyle, ...styles.statusRecruiting };
+            default:
+                return { ...baseStyle, ...styles.statusDefault };
+        }
     };
 
     // Database Selection Component
     const renderDatabaseSelection = () => (
-        <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800">Select Databases</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div style={{ marginBottom: '30px' }}>
+            <h3 style={styles.sectionTitle}>Select Databases</h3>
+            <div style={styles.databaseGrid}>
                 {databases.map((db) => (
                     <div
                         key={db.id}
-                        className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                            selectedDatabases.includes(db.id)
-                                ? 'border-blue-500 bg-blue-50 shadow-md'
-                                : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                        style={selectedDatabases.includes(db.id) ? styles.databaseCardSelected : styles.databaseCard}
                         onClick={() => {
                             setSelectedDatabases(prev => 
                                 prev.includes(db.id)
@@ -442,43 +787,51 @@ const PharmaceuticalIntelligenceSystem = () => {
                                     : [...prev, db.id]
                             );
                         }}
+                        onMouseEnter={(e) => {
+                            if (!selectedDatabases.includes(db.id)) {
+                                e.target.style.borderColor = '#a0aec0';
+                                e.target.style.transform = 'translateY(-2px)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!selectedDatabases.includes(db.id)) {
+                                e.target.style.borderColor = '#e2e8f0';
+                                e.target.style.transform = 'translateY(0)';
+                            }
+                        }}
                     >
-                        <div className="flex items-center space-x-3">
-                            <span className="text-2xl">{db.icon}</span>
-                            <div className="flex-1">
-                                <div className="font-medium text-gray-800">{db.name}</div>
-                                <div className="text-sm text-gray-600">{db.description}</div>
-                                <div className="text-xs text-gray-500 mt-1">{db.category}</div>
-                            </div>
-                            <div className={`w-4 h-4 rounded border-2 ${
-                                selectedDatabases.includes(db.id)
-                                    ? 'bg-blue-500 border-blue-500'
-                                    : 'border-gray-300'
-                            }`}>
-                                {selectedDatabases.includes(db.id) && (
-                                    <CheckCircle className="text-white" size={16} />
-                                )}
-                            </div>
+                        <span style={styles.databaseIcon}>{db.icon}</span>
+                        <div style={styles.databaseInfo}>
+                            <div style={styles.databaseName}>{db.name}</div>
+                            <div style={styles.databaseDesc}>{db.description}</div>
+                            <div style={styles.databaseCategory}>{db.category}</div>
+                        </div>
+                        <div style={selectedDatabases.includes(db.id) ? styles.checkboxSelected : styles.checkbox}>
+                            {selectedDatabases.includes(db.id) && <CheckCircle size={16} />}
                         </div>
                     </div>
                 ))}
             </div>
             
-            <div className="mt-4 flex space-x-2">
+            <div style={styles.buttonGroup}>
                 <button
                     onClick={() => setSelectedDatabases(databases.map(db => db.id))}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    style={styles.primaryButton}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#3182ce'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#4299e1'}
                 >
                     Select All
                 </button>
                 <button
                     onClick={() => setSelectedDatabases([])}
-                    className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                    style={styles.secondaryButton}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#718096'}
                 >
                     Clear All
                 </button>
-                <div className="flex-1"></div>
-                <span className="px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded">
+                <div style={{ flex: 1 }}></div>
+                <span style={styles.badge}>
                     {selectedDatabases.length} of {databases.length} selected
                 </span>
             </div>
@@ -490,104 +843,102 @@ const PharmaceuticalIntelligenceSystem = () => {
         if (results.length === 0) return null;
 
         return (
-            <div className="mb-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800 flex items-center">
-                    <BarChart3 className="mr-2" size={20} />
+            <div style={styles.analyticsContainer}>
+                <h3 style={styles.analyticsTitle}>
+                    <BarChart3 size={20} />
                     Search Analytics
                 </h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div style={styles.analyticsGrid}>
                     {/* Database Distribution */}
-                    <div>
-                        <h4 className="font-medium mb-3 text-gray-700">Database Distribution</h4>
-                        <div className="space-y-2">
+                    <div style={styles.analyticsSection}>
+                        <h4 style={styles.analyticsSectionTitle}>Database Distribution</h4>
+                        <div>
                             {analytics.databaseDistribution.map((db) => (
-                                <div key={db.name} className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-2">
+                                <div key={db.name} style={styles.analyticsItem}>
+                                    <div style={styles.analyticsLabel}>
                                         <span>{db.icon}</span>
-                                        <span className="text-sm text-gray-600">{db.name}</span>
+                                        <span>{db.name}</span>
                                     </div>
-                                    <span className="font-medium text-blue-600">{db.count}</span>
+                                    <span style={styles.analyticsValue}>{db.count}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Status Distribution */}
-                    <div>
-                        <h4 className="font-medium mb-3 text-gray-700">Status Distribution</h4>
-                        <div className="space-y-2">
+                    <div style={styles.analyticsSection}>
+                        <h4 style={styles.analyticsSectionTitle}>Status Distribution</h4>
+                        <div>
                             {Object.entries(analytics.statusDistribution).map(([status, count]) => (
-                                <div key={status} className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600">{status}</span>
-                                    <span className="font-medium text-green-600">{count}</span>
+                                <div key={status} style={styles.analyticsItem}>
+                                    <span style={styles.analyticsLabel}>{status}</span>
+                                    <span style={styles.analyticsValue}>{count}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Phase Distribution */}
-                    <div>
-                        <h4 className="font-medium mb-3 text-gray-700">Phase Distribution</h4>
-                        <div className="space-y-2">
+                    <div style={styles.analyticsSection}>
+                        <h4 style={styles.analyticsSectionTitle}>Phase Distribution</h4>
+                        <div>
                             {Object.entries(analytics.phaseDistribution).map(([phase, count]) => (
-                                <div key={phase} className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600">{phase}</span>
-                                    <span className="font-medium text-purple-600">{count}</span>
+                                <div key={phase} style={styles.analyticsItem}>
+                                    <span style={styles.analyticsLabel}>{phase}</span>
+                                    <span style={styles.analyticsValue}>{count}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-gray-800">
-                            Total Results: {analytics.total}
-                        </span>
-                        <button
-                            onClick={exportResults}
-                            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                        >
-                            <Download size={16} />
-                            <span>Export CSV</span>
-                        </button>
-                    </div>
+                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
+                        Total Results: {analytics.total}
+                    </span>
+                    <button
+                        onClick={exportResults}
+                        style={{
+                            ...styles.primaryButton,
+                            backgroundColor: '#38a169',
+                            color: '#ffffff'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#2f855a'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = '#38a169'}
+                    >
+                        <Download size={16} />
+                        <span>Export CSV</span>
+                    </button>
                 </div>
             </div>
         );
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-6 bg-white">
+        <div style={styles.container}>
             {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <div style={styles.header}>
+                <h1 style={styles.title}>
                     Pharmaceutical Intelligence System
                 </h1>
-                <p className="text-gray-600">
+                <p style={styles.subtitle}>
                     Advanced multi-database search and analysis platform for pharmaceutical research
                 </p>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="mb-6">
-                <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
-                        {['search', 'analytics', 'bookmarks'].map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                                    activeTab === tab
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                            </button>
-                        ))}
-                    </nav>
+            <div style={styles.tabContainer}>
+                <div style={styles.tabNav}>
+                    {['search', 'analytics', 'bookmarks'].map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            style={activeTab === tab ? styles.activeTab : styles.tab}
+                        >
+                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -597,27 +948,43 @@ const PharmaceuticalIntelligenceSystem = () => {
                     {renderDatabaseSelection()}
                     
                     {/* Search Interface */}
-                    <div className="mb-6 p-6 bg-gray-50 rounded-lg border">
-                        <div className="flex space-x-4 mb-4">
-                            <div className="flex-1 relative">
-                                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                    <div style={styles.searchContainer}>
+                        <div style={styles.searchInputContainer}>
+                            <div style={styles.searchInputWrapper}>
+                                <Search style={styles.searchIcon} size={20} />
                                 <input
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Enter your research query (e.g., 'Alzheimer disease trials', 'BRCA1 mutations')"
-                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    style={styles.searchInput}
                                     onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
+                                    onFocus={(e) => e.target.style.borderColor = '#4299e1'}
+                                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
                                 />
                             </div>
                             <button
                                 onClick={executeSearch}
                                 disabled={loading || !searchQuery.trim() || selectedDatabases.length === 0}
-                                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                                style={{
+                                    ...styles.primaryButton,
+                                    opacity: (loading || !searchQuery.trim() || selectedDatabases.length === 0) ? 0.6 : 1,
+                                    cursor: (loading || !searchQuery.trim() || selectedDatabases.length === 0) ? 'not-allowed' : 'pointer'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!e.target.disabled) {
+                                        e.target.style.backgroundColor = '#3182ce';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!e.target.disabled) {
+                                        e.target.style.backgroundColor = '#4299e1';
+                                    }
+                                }}
                             >
                                 {loading ? (
                                     <>
-                                        <Loader2 className="animate-spin" size={20} />
+                                        <Loader2 className="animate-spin" size={20} style={{ animation: 'spin 1s linear infinite' }} />
                                         <span>Searching...</span>
                                     </>
                                 ) : (
@@ -630,147 +997,169 @@ const PharmaceuticalIntelligenceSystem = () => {
                         </div>
 
                         {/* Search Controls */}
-                        <div className="flex items-center space-x-4 text-sm">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.875rem' }}>
                             <button
                                 onClick={() => setShowLogs(!showLogs)}
-                                className="flex items-center space-x-1 text-gray-600 hover:text-gray-800"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#718096',
+                                    cursor: 'pointer'
+                                }}
                             >
                                 {showLogs ? <EyeOff size={16} /> : <Eye size={16} />}
                                 <span>{showLogs ? 'Hide' : 'Show'} Logs</span>
-                            </button>
-                            
-                            <button
-                                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                                className="flex items-center space-x-1 text-gray-600 hover:text-gray-800"
-                            >
-                                <Filter size={16} />
-                                <span>Advanced Filters</span>
-                                {showAdvancedFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </button>
                         </div>
                     </div>
 
                     {/* Error Display */}
                     {error && (
-                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center space-x-2 text-red-700">
-                                <AlertCircle size={20} />
-                                <span>{error}</span>
-                            </div>
+                        <div style={styles.errorContainer}>
+                            <AlertCircle size={20} />
+                            <span style={styles.errorText}>{error}</span>
                         </div>
                     )}
 
                     {/* Logs Display */}
-                    {renderLogsDisplay()}
+                    {showLogs && searchLogs.length > 0 && (
+                        <div style={{ ...styles.searchContainer, marginBottom: '30px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#2d3748' }}>Search History & Logs</h3>
+                                <button
+                                    onClick={() => setShowLogs(false)}
+                                    style={{ background: 'none', border: 'none', color: '#a0aec0', cursor: 'pointer' }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            
+                            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                                {searchLogs.map((log) => (
+                                    <div key={log.id} style={{ 
+                                        padding: '12px', 
+                                        backgroundColor: '#ffffff', 
+                                        border: '1px solid #e2e8f0', 
+                                        borderRadius: '6px',
+                                        marginBottom: '8px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {log.status === 'running' && <Loader2 style={{ color: '#4299e1', animation: 'spin 1s linear infinite' }} size={16} />}
+                                                {log.status === 'completed' && <CheckCircle style={{ color: '#38a169' }} size={16} />}
+                                                {log.status === 'failed' && <AlertCircle style={{ color: '#e53e3e' }} size={16} />}
+                                                <span style={{ fontWeight: '500' }}>{log.query}</span>
+                                            </div>
+                                            <span style={{ fontSize: '0.75rem', color: '#a0aec0' }}>
+                                                {new Date(log.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </div>
+                                        
+                                        {log.resultsCount !== undefined && (
+                                            <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#718096' }}>
+                                                Found {log.resultsCount} results in {log.duration}ms
+                                            </div>
+                                        )}
+                                        
+                                        {log.error && (
+                                            <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#e53e3e' }}>
+                                                Error: {log.error}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Analytics */}
                     {renderAnalytics()}
 
                     {/* Results Table */}
                     {filteredAndSortedResults.length > 0 && (
-                        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                            <div className="p-4 bg-gray-50 border-b border-gray-200">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-gray-800">
-                                        Search Results ({filteredAndSortedResults.length})
-                                    </h3>
-                                    <div className="flex items-center space-x-4">
-                                        <input
-                                            type="text"
-                                            value={searchWithinResults}
-                                            onChange={(e) => setSearchWithinResults(e.target.value)}
-                                            placeholder="Search within results..."
-                                            className="px-3 py-1 border border-gray-300 rounded text-sm"
-                                        />
-                                        <select
-                                            value={databaseFilter}
-                                            onChange={(e) => setDatabaseFilter(e.target.value)}
-                                            className="px-3 py-1 border border-gray-300 rounded text-sm"
-                                        >
-                                            <option value="">All Databases</option>
-                                            {databases.map(db => (
-                                                <option key={db.id} value={db.id}>
-                                                    {db.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                        <div style={styles.resultsContainer}>
+                            <div style={styles.resultsHeader}>
+                                <h3 style={styles.resultsTitle}>
+                                    Search Results ({filteredAndSortedResults.length})
+                                </h3>
+                                <div style={styles.resultsControls}>
+                                    <input
+                                        type="text"
+                                        value={searchWithinResults}
+                                        onChange={(e) => setSearchWithinResults(e.target.value)}
+                                        placeholder="Search within results..."
+                                        style={styles.controlInput}
+                                    />
+                                    <select
+                                        value={databaseFilter}
+                                        onChange={(e) => setDatabaseFilter(e.target.value)}
+                                        style={styles.controlInput}
+                                    >
+                                        <option value="">All Databases</option>
+                                        {databases.map(db => (
+                                            <option key={db.id} value={db.id}>
+                                                {db.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={styles.table}>
+                                    <thead style={styles.tableHeader}>
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                <button
-                                                    onClick={() => setSortConfig({
-                                                        key: '_databaseName',
-                                                        direction: sortConfig.key === '_databaseName' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                                                    })}
-                                                    className="flex items-center space-x-1 hover:text-gray-700"
-                                                >
-                                                    <span>Database</span>
-                                                    <ArrowUpDown size={12} />
-                                                </button>
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Title
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Status
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Phase
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Actions
-                                            </th>
+                                            <th style={styles.tableHeaderCell}>Database</th>
+                                            <th style={styles.tableHeaderCell}>Title</th>
+                                            <th style={styles.tableHeaderCell}>Status</th>
+                                            <th style={styles.tableHeaderCell}>Phase</th>
+                                            <th style={styles.tableHeaderCell}>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody>
                                         {filteredAndSortedResults.map((result) => (
-                                            <tr key={result._id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center space-x-2">
-                                                        <span className="text-lg">
+                                            <tr 
+                                                key={result._id} 
+                                                style={styles.tableRow}
+                                                onMouseEnter={(e) => e.target.parentElement.style.backgroundColor = '#f7fafc'}
+                                                onMouseLeave={(e) => e.target.parentElement.style.backgroundColor = 'transparent'}
+                                            >
+                                                <td style={styles.tableCell}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontSize: '1.125rem' }}>
                                                             {databases.find(db => db.id === result._database)?.icon}
                                                         </span>
-                                                        <span className="text-sm font-medium text-gray-900">
+                                                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>
                                                             {result._databaseName}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm text-gray-900">
-                                                        {result.title || result.brief_title || 'N/A'}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        ID: {result.id || result.nct_id || 'N/A'}
+                                                <td style={styles.tableCell}>
+                                                    <div>
+                                                        <div style={{ fontSize: '0.875rem', color: '#2d3748', marginBottom: '2px' }}>
+                                                            {result.title || result.brief_title || 'N/A'}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#718096' }}>
+                                                            ID: {result.id || result.nct_id || 'N/A'}
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                                        result.status === 'Recruiting' ? 'bg-green-100 text-green-800' :
-                                                        result.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
-                                                        result.status === 'Active' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-gray-100 text-gray-800'
-                                                    }`}>
+                                                <td style={styles.tableCell}>
+                                                    <span style={getStatusBadgeStyle(result.status)}>
                                                         {result.status || 'Unknown'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <td style={styles.tableCell}>
                                                     {result.phase || 'N/A'}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <div className="flex items-center space-x-2">
+                                                <td style={styles.tableCell}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         <button
                                                             onClick={() => toggleBookmark(result._id)}
-                                                            className={`p-1 rounded hover:bg-gray-100 ${
-                                                                bookmarkedResults.includes(result._id)
-                                                                    ? 'text-yellow-500'
-                                                                    : 'text-gray-400'
-                                                            }`}
+                                                            style={bookmarkedResults.includes(result._id) ? styles.bookmarkButtonActive : styles.bookmarkButton}
                                                         >
                                                             {bookmarkedResults.includes(result._id) ? 
                                                                 <Star size={16} fill="currentColor" /> : 
@@ -781,7 +1170,11 @@ const PharmaceuticalIntelligenceSystem = () => {
                                                             onClick={() => setExpandedResult(
                                                                 expandedResult === result._id ? null : result._id
                                                             )}
-                                                            className="text-blue-600 hover:text-blue-900"
+                                                            style={{
+                                                                ...styles.actionButton,
+                                                                backgroundColor: '#4299e1',
+                                                                color: '#ffffff'
+                                                            }}
                                                         >
                                                             {expandedResult === result._id ? 'Collapse' : 'Expand'}
                                                         </button>
@@ -799,13 +1192,13 @@ const PharmaceuticalIntelligenceSystem = () => {
 
             {/* Analytics Tab */}
             {activeTab === 'analytics' && (
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Advanced Analytics</h2>
+                <div>
+                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem' }}>Advanced Analytics</h2>
                     {renderAnalytics()}
                     {results.length === 0 && (
-                        <div className="text-center py-12">
-                            <BarChart3 size={48} className="mx-auto text-gray-400 mb-4" />
-                            <p className="text-gray-600">No data available. Please perform a search first.</p>
+                        <div style={styles.emptyState}>
+                            <BarChart3 size={48} style={styles.emptyStateIcon} />
+                            <p>No data available. Please perform a search first.</p>
                         </div>
                     )}
                 </div>
@@ -813,29 +1206,39 @@ const PharmaceuticalIntelligenceSystem = () => {
 
             {/* Bookmarks Tab */}
             {activeTab === 'bookmarks' && (
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Bookmarked Results</h2>
+                <div>
+                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem' }}>Bookmarked Results</h2>
                     {bookmarkedResults.length === 0 ? (
-                        <div className="text-center py-12">
-                            <Star size={48} className="mx-auto text-gray-400 mb-4" />
-                            <p className="text-gray-600">No bookmarked results yet. Star results to save them here.</p>
+                        <div style={styles.emptyState}>
+                            <Star size={48} style={styles.emptyStateIcon} />
+                            <p>No bookmarked results yet. Star results to save them here.</p>
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             {results.filter(result => bookmarkedResults.includes(result._id)).map((result) => (
-                                <div key={result._id} className="p-4 border border-gray-200 rounded-lg">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1">
-                                            <h3 className="font-medium text-gray-900">
+                                <div key={result._id} style={{
+                                    padding: '16px',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    backgroundColor: '#ffffff'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <h3 style={{ fontSize: '1rem', fontWeight: '500', color: '#2d3748', marginBottom: '4px' }}>
                                                 {result.title || result.brief_title || 'N/A'}
                                             </h3>
-                                            <p className="text-sm text-gray-600 mt-1">
+                                            <p style={{ fontSize: '0.875rem', color: '#718096' }}>
                                                 {result._databaseName} • {result.status || 'Unknown Status'}
                                             </p>
                                         </div>
                                         <button
                                             onClick={() => toggleBookmark(result._id)}
-                                            className="text-yellow-500 hover:text-yellow-700"
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#f6e05e',
+                                                cursor: 'pointer'
+                                            }}
                                         >
                                             <Star size={20} fill="currentColor" />
                                         </button>
