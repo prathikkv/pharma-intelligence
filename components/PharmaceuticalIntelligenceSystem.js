@@ -2,7 +2,7 @@
 // This component integrates with your existing pharma-intelligence UI
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import OpenTargetService from './OpenTarget.js'; // Import our fixed service
+import OpenTargetService from './opentargets.js'; // Import our fixed service
 
 /**
  * Main OpenTargets Component
