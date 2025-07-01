@@ -12,7 +12,8 @@ const PharmaceuticalIntelligenceSystem = () => {
     sponsor: '',
     year: '',
     enrollmentMin: '',
-    enrollmentMax: ''
+    enrollmentMax: '',
+    database: ''
   });
   const [sortBy, setSortBy] = useState('start_date');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -387,13 +388,14 @@ const PharmaceuticalIntelligenceSystem = () => {
       const matchesYear = !filters.year || result.start_date?.includes(filters.year);
       const matchesMinEnrollment = !filters.enrollmentMin || (result.enrollment && result.enrollment >= parseInt(filters.enrollmentMin));
       const matchesMaxEnrollment = !filters.enrollmentMax || (result.enrollment && result.enrollment <= parseInt(filters.enrollmentMax));
+      const matchesDatabase = !filters.database || result.database === filters.database;
       const matchesSearchWithin = !searchWithin || 
         Object.values(result).some(value => 
           value && value.toString().toLowerCase().includes(searchWithin.toLowerCase())
         );
       
       return matchesPhase && matchesStatus && matchesSponsor && matchesYear && 
-             matchesMinEnrollment && matchesMaxEnrollment && matchesSearchWithin;
+             matchesMinEnrollment && matchesMaxEnrollment && matchesDatabase && matchesSearchWithin;
     });
 
     // Sorting
@@ -494,25 +496,40 @@ const PharmaceuticalIntelligenceSystem = () => {
       return acc;
     }, {});
 
+    const sponsorDistribution = filteredAndSortedResults.reduce((acc, result) => {
+      if (result.sponsor) acc[result.sponsor] = (acc[result.sponsor] || 0) + 1;
+      return acc;
+    }, {});
+
+    const topSponsors = Object.entries(sponsorDistribution)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5);
+
     return (
-      <div style={{marginTop: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px'}}>
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px'}}>
         {/* Database Distribution */}
-        <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'}}>
-          <h3 style={{marginBottom: '16px', fontWeight: '600'}}>📊 Results by Database</h3>
+        <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #e5e7eb'}}>
+          <h4 style={{marginBottom: '16px', fontWeight: '600', color: '#1f2937', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            📊 Results by Database
+            <span style={{fontSize: '12px', background: '#f3f4f6', color: '#6b7280', padding: '2px 6px', borderRadius: '8px'}}>
+              {filteredAndSortedResults.length} total
+            </span>
+          </h4>
           {Object.entries(databaseDistribution).map(([db, count]) => {
             const percentage = (count / filteredAndSortedResults.length) * 100;
             return (
-              <div key={db} style={{marginBottom: '8px'}}>
+              <div key={db} style={{marginBottom: '12px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '4px'}}>
-                  <span style={{fontSize: '14px'}}>{db}</span>
-                  <span style={{fontSize: '14px', fontWeight: '600'}}>{count}</span>
+                  <span style={{fontSize: '13px', fontWeight: '500'}}>{db}</span>
+                  <span style={{fontSize: '13px', fontWeight: '600', color: '#4f46e5'}}>{count} ({percentage.toFixed(1)}%)</span>
                 </div>
-                <div style={{background: '#f3f4f6', borderRadius: '4px', height: '8px', overflow: 'hidden'}}>
+                <div style={{background: '#f3f4f6', borderRadius: '6px', height: '8px', overflow: 'hidden'}}>
                   <div style={{
                     background: 'linear-gradient(90deg, #4f46e5, #7c3aed)',
                     height: '100%',
                     width: `${percentage}%`,
-                    transition: 'width 0.3s ease'
+                    transition: 'width 0.3s ease',
+                    borderRadius: '6px'
                   }}></div>
                 </div>
               </div>
@@ -522,22 +539,28 @@ const PharmaceuticalIntelligenceSystem = () => {
 
         {/* Phase Distribution */}
         {Object.keys(phaseDistribution).length > 0 && (
-          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'}}>
-            <h3 style={{marginBottom: '16px', fontWeight: '600'}}>🧪 Trial Phases</h3>
+          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #e5e7eb'}}>
+            <h4 style={{marginBottom: '16px', fontWeight: '600', color: '#1f2937', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              🧪 Trial Phases
+              <span style={{fontSize: '12px', background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '8px'}}>
+                {Object.values(phaseDistribution).reduce((a, b) => a + b, 0)} trials
+              </span>
+            </h4>
             {Object.entries(phaseDistribution).map(([phase, count]) => {
               const percentage = (count / Object.values(phaseDistribution).reduce((a, b) => a + b, 0)) * 100;
               return (
-                <div key={phase} style={{marginBottom: '8px'}}>
+                <div key={phase} style={{marginBottom: '12px'}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '4px'}}>
-                    <span style={{fontSize: '14px'}}>{phase}</span>
-                    <span style={{fontSize: '14px', fontWeight: '600'}}>{count}</span>
+                    <span style={{fontSize: '13px', fontWeight: '500'}}>{phase}</span>
+                    <span style={{fontSize: '13px', fontWeight: '600', color: '#10b981'}}>{count} ({percentage.toFixed(1)}%)</span>
                   </div>
-                  <div style={{background: '#f3f4f6', borderRadius: '4px', height: '8px', overflow: 'hidden'}}>
+                  <div style={{background: '#f3f4f6', borderRadius: '6px', height: '8px', overflow: 'hidden'}}>
                     <div style={{
                       background: 'linear-gradient(90deg, #10b981, #059669)',
                       height: '100%',
                       width: `${percentage}%`,
-                      transition: 'width 0.3s ease'
+                      transition: 'width 0.3s ease',
+                      borderRadius: '6px'
                     }}></div>
                   </div>
                 </div>
@@ -548,22 +571,34 @@ const PharmaceuticalIntelligenceSystem = () => {
 
         {/* Status Distribution */}
         {Object.keys(statusDistribution).length > 0 && (
-          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'}}>
-            <h3 style={{marginBottom: '16px', fontWeight: '600'}}>📈 Trial Status</h3>
+          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #e5e7eb'}}>
+            <h4 style={{marginBottom: '16px', fontWeight: '600', color: '#1f2937', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              📈 Status Overview
+              <span style={{fontSize: '12px', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '8px'}}>
+                Live data
+              </span>
+            </h4>
             {Object.entries(statusDistribution).map(([status, count]) => {
               const percentage = (count / Object.values(statusDistribution).reduce((a, b) => a + b, 0)) * 100;
+              const colors = {
+                'Recruiting': 'linear-gradient(90deg, #10b981, #059669)',
+                'Active, not recruiting': 'linear-gradient(90deg, #f59e0b, #d97706)',
+                'Completed': 'linear-gradient(90deg, #3b82f6, #1d4ed8)',
+                'Enrolling by invitation': 'linear-gradient(90deg, #8b5cf6, #7c3aed)'
+              };
               return (
-                <div key={status} style={{marginBottom: '8px'}}>
+                <div key={status} style={{marginBottom: '12px'}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '4px'}}>
-                    <span style={{fontSize: '14px'}}>{status}</span>
-                    <span style={{fontSize: '14px', fontWeight: '600'}}>{count}</span>
+                    <span style={{fontSize: '13px', fontWeight: '500'}}>{status}</span>
+                    <span style={{fontSize: '13px', fontWeight: '600', color: '#f59e0b'}}>{count} ({percentage.toFixed(1)}%)</span>
                   </div>
-                  <div style={{background: '#f3f4f6', borderRadius: '4px', height: '8px', overflow: 'hidden'}}>
+                  <div style={{background: '#f3f4f6', borderRadius: '6px', height: '8px', overflow: 'hidden'}}>
                     <div style={{
-                      background: 'linear-gradient(90deg, #f59e0b, #d97706)',
+                      background: colors[status] || 'linear-gradient(90deg, #6b7280, #4b5563)',
                       height: '100%',
                       width: `${percentage}%`,
-                      transition: 'width 0.3s ease'
+                      transition: 'width 0.3s ease',
+                      borderRadius: '6px'
                     }}></div>
                   </div>
                 </div>
@@ -572,24 +607,31 @@ const PharmaceuticalIntelligenceSystem = () => {
           </div>
         )}
 
-        {/* Year Distribution */}
-        {Object.keys(yearDistribution).length > 0 && (
-          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'}}>
-            <h3 style={{marginBottom: '16px', fontWeight: '600'}}>📅 Timeline</h3>
-            {Object.entries(yearDistribution).sort(([a], [b]) => b.localeCompare(a)).slice(0, 6).map(([year, count]) => {
-              const percentage = (count / Object.values(yearDistribution).reduce((a, b) => a + b, 0)) * 100;
+        {/* Top Sponsors */}
+        {topSponsors.length > 0 && (
+          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #e5e7eb'}}>
+            <h4 style={{marginBottom: '16px', fontWeight: '600', color: '#1f2937', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              🏢 Top Sponsors
+              <span style={{fontSize: '12px', background: '#ddd6fe', color: '#7c3aed', padding: '2px 6px', borderRadius: '8px'}}>
+                Top {topSponsors.length}
+              </span>
+            </h4>
+            {topSponsors.map(([sponsor, count]) => {
+              const maxCount = topSponsors[0][1];
+              const percentage = (count / maxCount) * 100;
               return (
-                <div key={year} style={{marginBottom: '8px'}}>
+                <div key={sponsor} style={{marginBottom: '12px'}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '4px'}}>
-                    <span style={{fontSize: '14px'}}>{year}</span>
-                    <span style={{fontSize: '14px', fontWeight: '600'}}>{count}</span>
+                    <span style={{fontSize: '13px', fontWeight: '500', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} title={sponsor}>{sponsor}</span>
+                    <span style={{fontSize: '13px', fontWeight: '600', color: '#8b5cf6'}}>{count} studies</span>
                   </div>
-                  <div style={{background: '#f3f4f6', borderRadius: '4px', height: '8px', overflow: 'hidden'}}>
+                  <div style={{background: '#f3f4f6', borderRadius: '6px', height: '8px', overflow: 'hidden'}}>
                     <div style={{
                       background: 'linear-gradient(90deg, #8b5cf6, #7c3aed)',
                       height: '100%',
                       width: `${percentage}%`,
-                      transition: 'width 0.3s ease'
+                      transition: 'width 0.3s ease',
+                      borderRadius: '6px'
                     }}></div>
                   </div>
                 </div>
@@ -597,6 +639,67 @@ const PharmaceuticalIntelligenceSystem = () => {
             })}
           </div>
         )}
+
+        {/* Timeline Analysis */}
+        {Object.keys(yearDistribution).length > 0 && (
+          <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #e5e7eb'}}>
+            <h4 style={{marginBottom: '16px', fontWeight: '600', color: '#1f2937', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              📅 Timeline Trends
+              <span style={{fontSize: '12px', background: '#fecaca', color: '#dc2626', padding: '2px 6px', borderRadius: '8px'}}>
+                Recent years
+              </span>
+            </h4>
+            {Object.entries(yearDistribution).sort(([a], [b]) => b.localeCompare(a)).slice(0, 6).map(([year, count]) => {
+              const percentage = (count / Object.values(yearDistribution).reduce((a, b) => a + b, 0)) * 100;
+              return (
+                <div key={year} style={{marginBottom: '12px'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '4px'}}>
+                    <span style={{fontSize: '13px', fontWeight: '500'}}>{year}</span>
+                    <span style={{fontSize: '13px', fontWeight: '600', color: '#dc2626'}}>{count} ({percentage.toFixed(1)}%)</span>
+                  </div>
+                  <div style={{background: '#f3f4f6', borderRadius: '6px', height: '8px', overflow: 'hidden'}}>
+                    <div style={{
+                      background: 'linear-gradient(90deg, #dc2626, #b91c1c)',
+                      height: '100%',
+                      width: `${percentage}%`,
+                      transition: 'width 0.3s ease',
+                      borderRadius: '6px'
+                    }}></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Quick Stats Summary */}
+        <div style={{background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(79, 70, 229, 0.3)'}}>
+          <h4 style={{marginBottom: '16px', fontWeight: '600', fontSize: '16px'}}>⚡ Quick Summary</h4>
+          <div style={{display: 'grid', gap: '8px', fontSize: '13px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between'}}>
+              <span>Total Results:</span>
+              <span style={{fontWeight: '600'}}>{filteredAndSortedResults.length}</span>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'space-between'}}>
+              <span>Databases:</span>
+              <span style={{fontWeight: '600'}}>{Object.keys(databaseDistribution).length}</span>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'space-between'}}>
+              <span>Unique Sponsors:</span>
+              <span style={{fontWeight: '600'}}>{Object.keys(sponsorDistribution).length}</span>
+            </div>
+            {Object.keys(phaseDistribution).length > 0 && (
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span>Trial Phases:</span>
+                <span style={{fontWeight: '600'}}>{Object.keys(phaseDistribution).length}</span>
+              </div>
+            )}
+            <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.2)'}}>
+              <span>Data Quality:</span>
+              <span style={{fontWeight: '600'}}>✅ Live</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -806,7 +909,7 @@ const PharmaceuticalIntelligenceSystem = () => {
             <div style={styles.logoIcon}>⚗️</div>
             <div>
               <h1 style={styles.title}>GRID Pharma Intelligence</h1>
-              <p style={styles.subtitle}>The IQVia Alternative • Powered by Claude AI • Unlimited Results</p>
+              <p style={styles.subtitle}>Prathik KV • ExcelraI • Unlimited Results</p>
             </div>
           </div>
           <div>
@@ -904,6 +1007,17 @@ const PharmaceuticalIntelligenceSystem = () => {
                 <option value="Recruiting">Recruiting</option>
                 <option value="Active">Active</option>
                 <option value="Completed">Completed</option>
+              </select>
+
+              <select
+                value={filters.database}
+                onChange={(e) => setFilters(prev => ({...prev, database: e.target.value}))}
+                style={styles.filterInput}
+              >
+                <option value="">All Databases</option>
+                {[...new Set(results.map(r => r.database))].filter(Boolean).map(db => (
+                  <option key={db} value={db}>{db}</option>
+                ))}
               </select>
 
               <input
@@ -1005,103 +1119,125 @@ const PharmaceuticalIntelligenceSystem = () => {
                 </div>
               </div>
             ) : (
-              <div style={{overflowX: 'auto'}}>
-                <table style={styles.resultsTable}>
-                  <thead>
-                    <tr style={styles.tableHeader}>
-                      <th style={styles.tableCell}>Database</th>
-                      <th style={styles.tableCell}>ID</th>
-                      <th style={styles.tableCell}>Title/Name</th>
-                      <th style={styles.tableCell}>Type</th>
-                      <th style={styles.tableCell}>Status/Significance</th>
-                      <th style={styles.tableCell}>Details</th>
-                      <th style={styles.tableCell}>Link</th>
-                      <th style={styles.tableCell}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAndSortedResults.map((result, index) => (
-                      <tr key={index} style={styles.tableRow}>
-                        <td style={styles.tableCell}>
-                          <span style={{
-                            background: '#ddd6fe',
-                            color: '#7c3aed',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: '600'
-                          }}>
-                            {result.database}
-                          </span>
-                        </td>
-                        <td style={{...styles.tableCell, fontFamily: 'monospace', color: '#4f46e5', fontWeight: '600', fontSize: '12px'}}>
-                          {result.nct_id || result.target_id || result.variation_id || result.gene_name || result.compound_name || result.pmid || 'N/A'}
-                        </td>
-                        <td style={{...styles.tableCell, maxWidth: '300px'}}>
-                          <div style={{fontWeight: '600', marginBottom: '4px', fontSize: '13px'}}>
-                            {result.title || result.target_name || result.variant_name || result.gene_name || result.compound_name || result.drug_name || 'N/A'}
-                          </div>
-                          <div style={{fontSize: '11px', color: '#6b7280'}}>
-                            {result.condition || result.disease_name || result.indication || result.function || 'N/A'}
-                          </div>
-                        </td>
-                        <td style={styles.tableCell}>
-                          {result.phase || result.type || result.activity_type || result.expression_level || result.family || 'N/A'}
-                        </td>
-                        <td style={styles.tableCell}>
-                          <span style={{
-                            background: result.status?.includes('Recruiting') || result.clinical_significance === 'Pathogenic' ? '#dcfce7' : '#f3f4f6',
-                            color: result.status?.includes('Recruiting') || result.clinical_significance === 'Pathogenic' ? '#166534' : '#374151',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: '600'
-                          }}>
-                            {result.status || result.clinical_significance || result.activity || result.reliability || 'N/A'}
-                          </span>
-                        </td>
-                        <td style={{...styles.tableCell, fontSize: '12px'}}>
-                          {result.sponsor || result.intervention || result.gene || result.target || result.journal || result.company || 'N/A'}
-                        </td>
-                        <td style={styles.tableCell}>
-                          <a 
-                            href={result.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            style={{
-                              color: '#4f46e5',
-                              textDecoration: 'none',
-                              fontWeight: '600',
-                              fontSize: '11px'
-                            }}
-                          >
-                            View →
-                          </a>
-                        </td>
-                        <td style={styles.tableCell}>
-                          <button
-                            onClick={() => toggleBookmark(result)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              fontSize: '16px'
-                            }}
-                          >
-                            {bookmarkedResults.find(r => r.nct_id === result.nct_id || r.target_id === result.target_id) ? '⭐' : '☆'}
-                          </button>
-                        </td>
+              <>
+                {/* Data Visualizations - NOW FIRST! */}
+                {filteredAndSortedResults.length > 0 && (
+                  <div style={{marginBottom: '32px'}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                      <h3 style={{fontSize: '18px', fontWeight: '600', color: '#1f2937'}}>📊 Data Overview & Analytics</h3>
+                      <button
+                        onClick={() => setShowVisualization(!showVisualization)}
+                        style={{
+                          ...styles.button,
+                          background: showVisualization ? '#ef4444' : '#8b5cf6'
+                        }}
+                      >
+                        {showVisualization ? '📈 Hide Charts' : '📊 Show Charts'}
+                      </button>
+                    </div>
+                    
+                    {showVisualization && renderAdvancedVisualization()}
+                  </div>
+                )}
+
+                {/* Results Table */}
+                <div style={{overflowX: 'auto'}}>
+                  <table style={styles.resultsTable}>
+                    <thead>
+                      <tr style={styles.tableHeader}>
+                        <th style={styles.tableCell}>Database</th>
+                        <th style={styles.tableCell}>ID</th>
+                        <th style={styles.tableCell}>Title/Name</th>
+                        <th style={styles.tableCell}>Type</th>
+                        <th style={styles.tableCell}>Status/Significance</th>
+                        <th style={styles.tableCell}>Details</th>
+                        <th style={styles.tableCell}>Link</th>
+                        <th style={styles.tableCell}>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredAndSortedResults.map((result, index) => (
+                        <tr key={index} style={styles.tableRow}>
+                          <td style={styles.tableCell}>
+                            <span style={{
+                              background: '#ddd6fe',
+                              color: '#7c3aed',
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: '600'
+                            }}>
+                              {result.database}
+                            </span>
+                          </td>
+                          <td style={{...styles.tableCell, fontFamily: 'monospace', color: '#4f46e5', fontWeight: '600', fontSize: '12px'}}>
+                            {result.nct_id || result.target_id || result.variation_id || result.gene_name || result.compound_name || result.pmid || 'N/A'}
+                          </td>
+                          <td style={{...styles.tableCell, maxWidth: '300px'}}>
+                            <div style={{fontWeight: '600', marginBottom: '4px', fontSize: '13px'}}>
+                              {result.title || result.target_name || result.variant_name || result.gene_name || result.compound_name || result.drug_name || 'N/A'}
+                            </div>
+                            <div style={{fontSize: '11px', color: '#6b7280'}}>
+                              {result.condition || result.disease_name || result.indication || result.function || 'N/A'}
+                            </div>
+                          </td>
+                          <td style={styles.tableCell}>
+                            {result.phase || result.type || result.activity_type || result.expression_level || result.family || 'N/A'}
+                          </td>
+                          <td style={styles.tableCell}>
+                            <span style={{
+                              background: result.status?.includes('Recruiting') || result.clinical_significance === 'Pathogenic' ? '#dcfce7' : '#f3f4f6',
+                              color: result.status?.includes('Recruiting') || result.clinical_significance === 'Pathogenic' ? '#166534' : '#374151',
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: '600'
+                            }}>
+                              {result.status || result.clinical_significance || result.activity || result.reliability || 'N/A'}
+                            </span>
+                          </td>
+                          <td style={{...styles.tableCell, fontSize: '12px'}}>
+                            {result.sponsor || result.intervention || result.gene || result.target || result.journal || result.company || 'N/A'}
+                          </td>
+                          <td style={styles.tableCell}>
+                            <a 
+                              href={result.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{
+                                color: '#4f46e5',
+                                textDecoration: 'none',
+                                fontWeight: '600',
+                                fontSize: '11px'
+                              }}
+                            >
+                              View →
+                            </a>
+                          </td>
+                          <td style={styles.tableCell}>
+                            <button
+                              onClick={() => toggleBookmark(result)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '16px'
+                              }}
+                            >
+                              {bookmarkedResults.find(r => r.nct_id === result.nct_id || r.target_id === result.target_id) ? '⭐' : '☆'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
 
-        {/* Advanced Visualizations */}
-        {showVisualization && filteredAndSortedResults.length > 0 && renderAdvancedVisualization()}
+        {/* Advanced Visualizations - REMOVED FROM HERE since moved above */}
 
         {/* Enhanced Stats */}
         {results.length > 0 && (
