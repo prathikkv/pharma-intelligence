@@ -1,685 +1,423 @@
-// api/search/index.js - Enhanced combined search endpoint with comprehensive error handling and logging
+// api/search/index.js - Main search endpoint
 export default async function handler(req, res) {
-    // Set comprehensive CORS headers
+    // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Max-Age', '86400');
-
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
     if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
     }
 
     if (req.method !== 'GET') {
-        return res.status(405).json({ 
-            error: 'Method not allowed',
-            allowed_methods: ['GET', 'OPTIONS'],
-            timestamp: new Date().toISOString()
-        });
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const startTime = performance.now();
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+    const { query, databases } = req.query;
+
+    if (!query) {
+        return res.status(400).json({ error: 'Query parameter is required' });
+    }
+
     try {
-        const { query, database, limit = 50 } = req.query;
-        
-        // Enhanced input validation
-        if (!query || query.trim().length === 0) {
-            return res.status(400).json({ 
-                error: 'Query parameter is required and cannot be empty',
-                example: '/api/search?query=alzheimer disease',
-                request_id: requestId,
-                timestamp: new Date().toISOString()
-            });
-        }
+        // Database configurations
+        const databaseConfigs = {
+            clinicaltrials: {
+                name: 'ClinicalTrials.gov',
+                endpoint: 'https://clinicaltrials.gov/api/v2/studies',
+                searchLogic: async (searchQuery) => {
+                    const response = await fetch(
+                        `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(searchQuery)}&format=json&countTotal=true&pageSize=1000`
+                    );
+                    const data = await response.json();
+                    return {
+                        results: data.studies?.map(study => ({
+                            id: study.protocolSection?.identificationModule?.nctId,
+                            title: study.protocolSection?.identificationModule?.briefTitle,
+                            status: study.protocolSection?.statusModule?.overallStatus,
+                            phase: study.protocolSection?.designModule?.phases?.[0],
+                            sponsor: study.protocolSection?.sponsorCollaboratorsModule?.leadSponsor?.name,
+                            start_date: study.protocolSection?.statusModule?.startDateStruct?.date,
+                            brief_summary: study.protocolSection?.descriptionModule?.briefSummary,
+                            conditions: study.protocolSection?.conditionsModule?.conditions,
+                            interventions: study.protocolSection?.armsInterventionsModule?.interventions,
+                            enrollment: study.protocolSection?.designModule?.enrollmentInfo?.count,
+                            study_type: study.protocolSection?.designModule?.studyType,
+                            url: `https://clinicaltrials.gov/study/${study.protocolSection?.identificationModule?.nctId}`
+                        })) || [],
+                        total: data.totalCount || 0
+                    };
+                }
+            },
 
-        if (query.trim().length > 1000) {
-            return res.status(400).json({
-                error: 'Query too long. Maximum 1000 characters allowed.',
-                provided_length: query.length,
-                request_id: requestId,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // Determine base URL for internal API calls
-        const protocol = req.headers['x-forwarded-proto'] || 'http';
-        const host = req.headers.host;
-        const baseUrl = host?.includes('localhost') 
-            ? 'http://localhost:3000' 
-            : `${protocol}://${host}`;
-
-        console.log(`[${requestId}] Combined search for: "${query}" (base URL: ${baseUrl})`);
-
-        // Define all available databases with enhanced configuration
-        const availableDatabases = [
-            { id: 'clinicaltrials', name: 'ClinicalTrials.gov', timeout: 30000, retries: 2 },
-            { id: 'opentargets', name: 'Open Targets', timeout: 25000, retries: 2 }, 
-            { id: 'chembl', name: 'ChEMBL', timeout: 20000, retries: 2 },
-            { id: 'drugbank', name: 'DrugBank', timeout: 20000, retries: 2 },
-            { id: 'evaluatepharma', name: 'EvaluatePharma', timeout: 15000, retries: 2 },
-            { id: 'clinvar', name: 'ClinVar', timeout: 25000, retries: 2 },
-            { id: 'hpa', name: 'Human Protein Atlas', timeout: 20000, retries: 2 },
-            { id: 'uniprot', name: 'UniProt', timeout: 20000, retries: 2 },
-            { id: 'pubmed', name: 'PubMed', timeout: 30000, retries: 2 },
-            { id: 'mgi', name: 'Mouse Genome Informatics', timeout: 20000, retries: 2 },
-            { id: 'iuphar', name: 'IUPHAR/BPS', timeout: 20000, retries: 2 }
-        ];
-
-        // Determine which databases to search
-        const databasesToSearch = database && database !== 'all' 
-            ? [database].filter(db => availableDatabases.find(adb => adb.id === db))
-            : availableDatabases.map(db => db.id);
-
-        if (databasesToSearch.length === 0) {
-            return res.status(400).json({
-                error: 'Invalid database specified',
-                provided: database,
-                available_databases: availableDatabases.map(db => db.id),
-                request_id: requestId,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        console.log(`[${requestId}] Searching databases: ${databasesToSearch.join(', ')}`);
-
-        // Execute searches in parallel with enhanced error handling
-        const searchPromises = databasesToSearch.map(async (dbId, index) => {
-            const dbConfig = availableDatabases.find(db => db.id === dbId);
-            const searchStartTime = performance.now();
-            
-            // Retry mechanism for each database
-            for (let attempt = 1; attempt <= (dbConfig?.retries || 2); attempt++) {
-                try {
-                    const apiUrl = `${baseUrl}/api/search/${dbId}?query=${encodeURIComponent(query)}&limit=${limit}`;
-                    console.log(`[${requestId}] Attempt ${attempt} for ${dbId}: ${apiUrl}`);
-                    
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => {
-                        controller.abort();
-                        console.log(`[${requestId}] ${dbId} timeout after ${dbConfig?.timeout || 20000}ms`);
-                    }, dbConfig?.timeout || 20000);
-                    
-                    const response = await fetch(apiUrl, {
-                        signal: controller.signal,
-                        headers: {
-                            'Accept': 'application/json',
-                            'User-Agent': 'IntelliGRID-CombinedSearch/2.0',
-                            'X-Request-ID': requestId
+            opentargets: {
+                name: 'Open Targets',
+                endpoint: 'https://api.platform.opentargets.org/api/v4/graphql',
+                searchLogic: async (searchQuery) => {
+                    const graphqlQuery = `
+                        query Search($queryString: String!) {
+                            search(queryString: $queryString, entityNames: ["target", "disease"]) {
+                                hits {
+                                    id
+                                    name
+                                    description
+                                    category
+                                    entity
+                                    ... on Target {
+                                        approvedSymbol
+                                        biotype
+                                        proteinAnnotations {
+                                            id
+                                            accessions
+                                        }
+                                    }
+                                    ... on Disease {
+                                        id
+                                        name
+                                        therapeuticAreas {
+                                            id
+                                            name
+                                        }
+                                    }
+                                }
+                                total
+                            }
                         }
+                    `;
+                    
+                    const response = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: graphqlQuery,
+                            variables: { queryString: searchQuery }
+                        })
                     });
-                    
-                    clearTimeout(timeoutId);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
                     
                     const data = await response.json();
-                    const responseTime = performance.now() - searchStartTime;
-                    
-                    // Enhanced result validation and processing
-                    const validatedResults = (data.results || [])
-                        .filter(result => result && typeof result === 'object')
-                        .map((result, resultIndex) => {
-                            // Ensure all critical fields are populated
-                            const processedResult = {
-                                ...result,
-                                // Generate unique ID if missing
-                                id: result.id || `${dbId}-${Date.now()}-${resultIndex}-${Math.random().toString(36).substr(2, 9)}`,
-                                // Ensure database is set
-                                database: result.database || dbConfig?.name || dbId,
-                                // Clean up title
-                                title: cleanupField(result.title) || `${dbConfig?.name || dbId} research entry`,
-                                // Clean up details
-                                details: cleanupField(result.details) || `Research data from ${dbConfig?.name || dbId}`,
-                                // Clean up status
-                                status: cleanupField(result.status) || 'Available',
-                                // Ensure phase is set
-                                phase: cleanupField(result.phase) || 'N/A',
-                                // Ensure year is valid
-                                year: validateYear(result.year) || new Date().getFullYear(),
-                                // Clean up sponsor
-                                sponsor: cleanupField(result.sponsor) || 'See details',
-                                // Clean up enrollment
-                                enrollment: cleanupField(result.enrollment) || 'N/A',
-                                // Ensure link is valid
-                                link: validateLink(result.link) || '#',
-                                // Add search metadata
-                                search_response_time: responseTime,
-                                search_timestamp: new Date().toISOString(),
-                                search_request_id: requestId,
-                                search_attempt: attempt,
-                                data_quality: assessDataQuality(result)
-                            };
-                            
-                            return processedResult;
-                        });
-                    
-                    console.log(`[${requestId}] ${dbId} success: ${validatedResults.length} results in ${Math.round(responseTime)}ms (attempt ${attempt})`);
-                    
                     return {
-                        database: dbId,
-                        database_name: dbConfig?.name || dbId,
-                        success: true,
-                        results: validatedResults,
-                        total: data.total || validatedResults.length,
-                        response_time: responseTime,
-                        search_timestamp: data.search_timestamp || new Date().toISOString(),
-                        attempt: attempt,
-                        metadata: {
-                            query_processed: data.query || query,
-                            filters_applied: data.filters || {},
-                            intelligence_summary: data.intelligence_summary || null,
-                            data_source: data.data_source || dbId,
-                            api_version: data.api_version || '1.0'
-                        }
+                        results: data.data?.search?.hits?.map(hit => ({
+                            id: hit.id,
+                            title: hit.name,
+                            description: hit.description,
+                            category: hit.category,
+                            entity: hit.entity,
+                            symbol: hit.approvedSymbol,
+                            biotype: hit.biotype,
+                            therapeutic_areas: hit.therapeuticAreas?.map(area => area.name).join(', '),
+                            url: `https://platform.opentargets.org/${hit.entity}/${hit.id}`
+                        })) || [],
+                        total: data.data?.search?.total || 0
                     };
+                }
+            },
+
+            pubmed: {
+                name: 'PubMed',
+                endpoint: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
+                searchLogic: async (searchQuery) => {
+                    // First, search for PMIDs
+                    const searchResponse = await fetch(
+                        `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchQuery)}&retmax=100&retmode=json`
+                    );
+                    const searchData = await searchResponse.json();
                     
-                } catch (error) {
-                    const responseTime = performance.now() - searchStartTime;
-                    const isLastAttempt = attempt === (dbConfig?.retries || 2);
-                    
-                    console.error(`[${requestId}] ${dbId} attempt ${attempt} failed after ${Math.round(responseTime)}ms:`, error.message);
-                    
-                    if (!isLastAttempt) {
-                        // Wait before retrying with exponential backoff
-                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-                        continue;
+                    if (!searchData.esearchresult?.idlist?.length) {
+                        return { results: [], total: 0 };
                     }
-                    
-                    // Return error result after all retries exhausted
+
+                    // Get detailed information for the first 20 results
+                    const pmids = searchData.esearchresult.idlist.slice(0, 20);
+                    const summaryResponse = await fetch(
+                        `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${pmids.join(',')}&retmode=json`
+                    );
+                    const summaryData = await summaryResponse.json();
+
                     return {
-                        database: dbId,
-                        database_name: dbConfig?.name || dbId,
-                        success: false,
-                        error: error.message,
-                        error_type: error.name || 'UnknownError',
-                        response_time: responseTime,
-                        results: [],
-                        total: 0,
-                        attempt: attempt,
-                        timeout: dbConfig?.timeout || 20000
+                        results: pmids.map(pmid => {
+                            const article = summaryData.result?.[pmid];
+                            return {
+                                id: pmid,
+                                title: article?.title || 'Title not available',
+                                authors: article?.authors?.map(author => author.name).join(', ') || 'Authors not available',
+                                journal: article?.fulljournalname || article?.source || 'Journal not available',
+                                publication_date: article?.pubdate || 'Date not available',
+                                doi: article?.elocationid || '',
+                                abstract: article?.abstract || 'Abstract not available',
+                                url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`
+                            };
+                        }),
+                        total: parseInt(searchData.esearchresult.count) || 0
                     };
+                }
+            },
+
+            drugbank: {
+                name: 'DrugBank',
+                endpoint: 'https://go.drugbank.com/api/v1/',
+                searchLogic: async (searchQuery) => {
+                    // Note: DrugBank requires API key for full access
+                    // This is a simplified implementation
+                    try {
+                        // Mock data for demonstration - replace with actual API call
+                        return {
+                            results: [
+                                {
+                                    id: 'DB00001',
+                                    title: `Drug entry related to: ${searchQuery}`,
+                                    status: 'Approved',
+                                    type: 'Small Molecule',
+                                    indication: 'Treatment indication',
+                                    mechanism: 'Mechanism of action',
+                                    url: 'https://go.drugbank.com/drugs/DB00001'
+                                }
+                            ],
+                            total: 1
+                        };
+                    } catch (error) {
+                        console.error('DrugBank API error:', error);
+                        return { results: [], total: 0, error: 'DrugBank API unavailable' };
+                    }
+                }
+            },
+
+            chembl: {
+                name: 'ChEMBL',
+                endpoint: 'https://www.ebi.ac.uk/chembl/api/data/',
+                searchLogic: async (searchQuery) => {
+                    try {
+                        const response = await fetch(
+                            `https://www.ebi.ac.uk/chembl/api/data/molecule/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=100`
+                        );
+                        const data = await response.json();
+
+                        return {
+                            results: data.molecules?.map(molecule => ({
+                                id: molecule.molecule_chembl_id,
+                                title: molecule.pref_name || molecule.molecule_chembl_id,
+                                molecular_formula: molecule.molecule_properties?.molecular_formula,
+                                molecular_weight: molecule.molecule_properties?.molecular_weight,
+                                alogp: molecule.molecule_properties?.alogp,
+                                compound_type: molecule.molecule_type,
+                                max_phase: molecule.max_phase,
+                                url: `https://www.ebi.ac.uk/chembl/compound_report_card/${molecule.molecule_chembl_id}/`
+                            })) || [],
+                            total: data.page_meta?.total_count || 0
+                        };
+                    } catch (error) {
+                        console.error('ChEMBL API error:', error);
+                        return { results: [], total: 0, error: 'ChEMBL API unavailable' };
+                    }
+                }
+            },
+
+            clinvar: {
+                name: 'ClinVar',
+                endpoint: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
+                searchLogic: async (searchQuery) => {
+                    try {
+                        const searchResponse = await fetch(
+                            `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=clinvar&term=${encodeURIComponent(searchQuery)}&retmax=50&retmode=json`
+                        );
+                        const searchData = await searchResponse.json();
+
+                        if (!searchData.esearchresult?.idlist?.length) {
+                            return { results: [], total: 0 };
+                        }
+
+                        const ids = searchData.esearchresult.idlist.slice(0, 20);
+                        const summaryResponse = await fetch(
+                            `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=clinvar&id=${ids.join(',')}&retmode=json`
+                        );
+                        const summaryData = await summaryResponse.json();
+
+                        return {
+                            results: ids.map(id => {
+                                const variant = summaryData.result?.[id];
+                                return {
+                                    id: id,
+                                    title: variant?.title || `ClinVar Variant ${id}`,
+                                    clinical_significance: variant?.clinical_significance || 'Unknown',
+                                    gene_symbol: variant?.gene_symbol || 'Unknown',
+                                    condition: variant?.condition || 'Unknown',
+                                    variant_type: variant?.variant_type || 'Unknown',
+                                    url: `https://www.ncbi.nlm.nih.gov/clinvar/variation/${id}/`
+                                };
+                            }),
+                            total: parseInt(searchData.esearchresult.count) || 0
+                        };
+                    } catch (error) {
+                        console.error('ClinVar API error:', error);
+                        return { results: [], total: 0, error: 'ClinVar API unavailable' };
+                    }
                 }
             }
-        });
+        };
 
-        // Wait for all searches to complete
-        const searchResults = await Promise.allSettled(searchPromises);
+        // Default to all databases if none specified
+        const selectedDatabases = databases ? databases.split(',') : Object.keys(databaseConfigs);
         
-        // Process results and collect comprehensive metrics
-        const combinedResults = [];
-        const successfulDatabases = [];
-        const failedDatabases = [];
-        const databaseMetrics = {};
-        let totalResults = 0;
-        
-        searchResults.forEach((promiseResult, index) => {
-            const dbId = databasesToSearch[index];
-            const dbConfig = availableDatabases.find(db => db.id === dbId);
-            
-            if (promiseResult.status === 'fulfilled') {
-                const result = promiseResult.value;
-                
-                if (result.success) {
-                    combinedResults.push(...result.results);
-                    successfulDatabases.push({
-                        database: result.database,
-                        database_name: result.database_name,
-                        results_count: result.results.length,
-                        total_available: result.total,
-                        response_time: result.response_time,
-                        attempts: result.attempt
-                    });
-                    totalResults += result.total;
-                    
-                    databaseMetrics[dbId] = {
-                        status: 'success',
-                        results_count: result.results.length,
-                        total_available: result.total,
-                        response_time: result.response_time,
-                        attempts: result.attempt,
-                        metadata: result.metadata
-                    };
-                } else {
-                    failedDatabases.push({
-                        database: result.database,
-                        database_name: result.database_name,
-                        error: result.error,
-                        error_type: result.error_type,
-                        response_time: result.response_time,
-                        attempts: result.attempt,
-                        timeout: result.timeout
-                    });
-                    
-                    databaseMetrics[dbId] = {
-                        status: 'error',
-                        error: result.error,
-                        error_type: result.error_type,
-                        response_time: result.response_time,
-                        attempts: result.attempt,
-                        timeout: result.timeout
-                    };
-                }
-            } else {
-                failedDatabases.push({
+        // Execute searches in parallel with error handling
+        const searchPromises = selectedDatabases.map(async (dbId) => {
+            const config = databaseConfigs[dbId];
+            if (!config) {
+                return {
                     database: dbId,
-                    database_name: dbConfig?.name || dbId,
-                    error: promiseResult.reason?.message || 'Promise rejected',
-                    error_type: 'PromiseRejection',
-                    response_time: null,
-                    attempts: 0
-                });
-                
-                databaseMetrics[dbId] = {
-                    status: 'error',
-                    error: promiseResult.reason?.message || 'Promise rejected',
-                    error_type: 'PromiseRejection'
+                    error: `Unknown database: ${dbId}`,
+                    results: [],
+                    total: 0
+                };
+            }
+
+            try {
+                const startTime = Date.now();
+                const searchResult = await config.searchLogic(query);
+                const endTime = Date.now();
+
+                return {
+                    database: dbId,
+                    databaseName: config.name,
+                    results: searchResult.results || [],
+                    total: searchResult.total || 0,
+                    searchTime: endTime - startTime,
+                    error: searchResult.error || null
+                };
+            } catch (error) {
+                console.error(`Error searching ${config.name}:`, error);
+                return {
+                    database: dbId,
+                    databaseName: config.name,
+                    results: [],
+                    total: 0,
+                    error: error.message,
+                    searchTime: 0
                 };
             }
         });
 
-        // Enhanced result processing
-        const uniqueResults = removeDuplicateResults(combinedResults);
-        const enhancedResults = enhanceResultsWithMetadata(uniqueResults, query, requestId);
+        const searchResults = await Promise.all(searchPromises);
         
-        // Sort results by quality and relevance
-        const sortedResults = enhancedResults.sort((a, b) => {
-            // Primary sort: data quality
-            const qualityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-            const qualityDiff = (qualityOrder[b.data_quality] || 0) - (qualityOrder[a.data_quality] || 0);
-            if (qualityDiff !== 0) return qualityDiff;
-            
-            // Secondary sort: response time (faster first)
-            return (a.search_response_time || Infinity) - (b.search_response_time || Infinity);
-        });
-
-        const endTime = performance.now();
-        const totalSearchTime = endTime - startTime;
-
-        // Prepare comprehensive response
-        const response = {
-            // Core results
-            results: sortedResults,
-            total: totalResults,
-            unique_results: uniqueResults.length,
-            filtered_results: sortedResults.length,
-            
-            // Search metadata
-            query: query,
-            databases_searched: databasesToSearch,
-            successful_databases: successfulDatabases,
-            failed_databases: failedDatabases,
-            database_metrics: databaseMetrics,
-            
-            // Request tracking
-            request_id: requestId,
-            search_timestamp: new Date().toISOString(),
-            total_search_time: Math.round(totalSearchTime),
-            
-            // Performance metrics
-            performance: {
-                fastest_database: getExtremeDatabaseMetric(databaseMetrics, 'response_time', 'min'),
-                slowest_database: getExtremeDatabaseMetric(databaseMetrics, 'response_time', 'max'),
-                average_response_time: calculateAverageResponseTime(databaseMetrics),
-                success_rate: calculateSuccessRate(successfulDatabases.length, databasesToSearch.length),
-                total_api_calls: databasesToSearch.reduce((sum, dbId) => 
-                    sum + (databaseMetrics[dbId]?.attempts || 0), 0)
-            },
-            
-            // Summary statistics
-            summary: {
-                total_databases_searched: databasesToSearch.length,
-                successful_databases_count: successfulDatabases.length,
-                failed_databases_count: failedDatabases.length,
-                high_quality_results: sortedResults.filter(r => r.data_quality === 'high').length,
-                medium_quality_results: sortedResults.filter(r => r.data_quality === 'medium').length,
-                low_quality_results: sortedResults.filter(r => r.data_quality === 'low').length,
-                avg_completeness_score: calculateAverageCompleteness(sortedResults)
-            },
-            
-            // Health status
-            system_health: {
-                overall_status: failedDatabases.length === 0 ? 'healthy' : 
-                               successfulDatabases.length === 0 ? 'critical' : 'degraded',
-                online_databases: successfulDatabases.length,
-                offline_databases: failedDatabases.length,
-                system_load: categorizeSystemLoad(totalSearchTime),
-                data_quality_score: calculateDataQualityScore(sortedResults)
+        // Combine results
+        const combinedResults = searchResults.reduce((acc, result) => {
+            if (result.results && result.results.length > 0) {
+                const enhancedResults = result.results.map(item => ({
+                    ...item,
+                    _database: result.database,
+                    _databaseName: result.databaseName,
+                    _searchTime: result.searchTime
+                }));
+                acc.push(...enhancedResults);
             }
-        };
+            return acc;
+        }, []);
 
-        // Log comprehensive search summary
-        console.log(`[${requestId}] Search completed: ${uniqueResults.length} unique results from ${totalResults} total across ${successfulDatabases.length}/${databasesToSearch.length} databases in ${Math.round(totalSearchTime)}ms`);
-        
-        if (failedDatabases.length > 0) {
-            console.warn(`[${requestId}] Failed databases: ${failedDatabases.map(f => f.database).join(', ')}`);
-        }
+        // Calculate statistics
+        const totalResults = combinedResults.length;
+        const totalSearchTime = Math.max(...searchResults.map(r => r.searchTime));
+        const databaseStats = searchResults.map(r => ({
+            database: r.databaseName,
+            count: r.results.length,
+            total: r.total,
+            searchTime: r.searchTime,
+            error: r.error
+        }));
 
-        // Set appropriate status code based on results
-        let statusCode = 200;
-        if (failedDatabases.length === databasesToSearch.length) {
-            statusCode = 503; // Service Unavailable - all databases failed
-        } else if (failedDatabases.length > 0) {
-            statusCode = 206; // Partial Content - some databases failed
-        }
-
-        return res.status(statusCode).json(response);
+        res.status(200).json({
+            results: combinedResults,
+            total: totalResults,
+            query: query,
+            databases: selectedDatabases,
+            statistics: {
+                totalResults,
+                totalSearchTime,
+                databaseStats,
+                successfulDatabases: searchResults.filter(r => !r.error).length,
+                failedDatabases: searchResults.filter(r => r.error).length
+            },
+            search_timestamp: new Date().toISOString()
+        });
 
     } catch (error) {
-        const endTime = performance.now();
-        const totalSearchTime = endTime - startTime;
-        
-        console.error(`[${requestId}] Critical search failure after ${Math.round(totalSearchTime)}ms:`, error);
-        
-        return res.status(500).json({ 
-            error: 'Internal server error during combined search',
+        console.error('Search execution error:', error);
+        res.status(500).json({
+            error: 'Internal server error',
             message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-            request_id: requestId,
-            timestamp: new Date().toISOString(),
-            total_search_time: Math.round(totalSearchTime),
-            results: [],
-            total: 0,
-            query: req.query.query || null,
-            system_health: {
-                overall_status: 'critical',
-                error_type: error.name || 'UnknownError'
-            }
+            query: query
         });
     }
 }
 
-/**
- * Helper function to clean up text fields
- */
-function cleanupField(value) {
-    if (!value || value === 'null' || value === 'undefined') return null;
-    if (typeof value !== 'string') return value;
+// api/search/clinicaltrials.js - Individual database endpoint
+export default async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    const cleaned = value.trim();
-    if (cleaned === '' || cleaned.toLowerCase() === 'n/a' || cleaned.toLowerCase() === 'unknown') {
-        return null;
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
     }
-    return cleaned;
-}
 
-/**
- * Helper function to validate year values
- */
-function validateYear(year) {
-    const currentYear = new Date().getFullYear();
-    const numYear = parseInt(year);
-    
-    if (isNaN(numYear) || numYear < 1900 || numYear > currentYear + 10) {
-        return null;
+    if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
-    return numYear;
-}
 
-/**
- * Helper function to validate link URLs
- */
-function validateLink(link) {
-    if (!link || typeof link !== 'string') return null;
-    
-    const cleaned = link.trim();
-    if (cleaned === '' || cleaned === '#' || !cleaned.includes('http')) {
-        return null;
+    const { query } = req.query;
+
+    if (!query) {
+        return res.status(400).json({ error: 'Query parameter is required' });
     }
-    return cleaned;
-}
 
-/**
- * Assess the quality of result data
- */
-function assessDataQuality(result) {
-    let score = 0;
-    
-    // Check for meaningful data presence
-    if (result.title && result.title !== 'N/A' && result.title.length > 5) score += 3;
-    if (result.details && result.details !== 'N/A' && result.details.length > 10) score += 3;
-    if (result.link && result.link !== '#' && result.link.includes('http')) score += 2;
-    if (result.status && result.status !== 'N/A' && result.status !== 'Unknown') score += 2;
-    if (result.phase && result.phase !== 'N/A') score += 1;
-    if (result.year && result.year > 1990) score += 1;
-    if (result.sponsor && result.sponsor !== 'N/A' && result.sponsor !== 'Unknown') score += 1;
-    
-    // Database-specific quality indicators
-    if (result.clinical_trials_count > 0) score += 2;
-    if (result.market_value) score += 2;
-    if (result.pubmed_id || result.pmid) score += 1;
-    if (result.raw_data && Object.keys(result.raw_data).length > 3) score += 1;
-    
-    return score >= 8 ? 'high' : score >= 5 ? 'medium' : 'low';
-}
-
-/**
- * Remove duplicate results based on enhanced similarity analysis
- */
-function removeDuplicateResults(results) {
-    const seen = new Map();
-    const unique = [];
-    
-    results.forEach(result => {
-        // Create enhanced similarity key
-        const titleWords = (result.title || '').toLowerCase()
-            .replace(/[^\w\s]/g, '')
-            .split(/\s+/)
-            .filter(word => word.length > 2)
-            .slice(0, 5)
-            .sort()
-            .join(' ');
-            
-        const key = `${titleWords}-${result.database}-${result.year}`;
+    try {
+        const response = await fetch(
+            `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(query)}&format=json&countTotal=true&pageSize=1000`
+        );
         
-        if (!seen.has(key)) {
-            seen.set(key, true);
-            unique.push(result);
+        if (!response.ok) {
+            throw new Error(`ClinicalTrials.gov API error: ${response.status}`);
         }
-    });
-    
-    return unique;
-}
 
-/**
- * Enhance results with cross-database metadata
- */
-function enhanceResultsWithMetadata(results, query, requestId) {
-    return results.map(result => ({
-        ...result,
-        // Add cross-database relevance scoring
-        cross_db_relevance: calculateCrossDbRelevance(result, query, results),
-        // Add completeness scoring
-        data_completeness: calculateDataCompleteness(result),
-        // Add search context
-        search_context: {
-            query_match_score: calculateQueryMatchScore(result, query),
-            database_confidence: getDatabaseConfidence(result.database),
-            data_freshness: calculateDataFreshness(result),
-            link_validity: result.link && result.link !== '#' ? 'valid' : 'invalid'
-        },
-        // Add request tracking
-        search_request_id: requestId
-    }));
-}
+        const data = await response.json();
+        
+        const results = data.studies?.map(study => ({
+            id: study.protocolSection?.identificationModule?.nctId,
+            nct_id: study.protocolSection?.identificationModule?.nctId,
+            title: study.protocolSection?.identificationModule?.briefTitle,
+            brief_title: study.protocolSection?.identificationModule?.briefTitle,
+            official_title: study.protocolSection?.identificationModule?.officialTitle,
+            status: study.protocolSection?.statusModule?.overallStatus,
+            phase: study.protocolSection?.designModule?.phases?.[0],
+            sponsor: study.protocolSection?.sponsorCollaboratorsModule?.leadSponsor?.name,
+            start_date: study.protocolSection?.statusModule?.startDateStruct?.date,
+            completion_date: study.protocolSection?.statusModule?.completionDateStruct?.date,
+            brief_summary: study.protocolSection?.descriptionModule?.briefSummary,
+            detailed_description: study.protocolSection?.descriptionModule?.detailedDescription,
+            conditions: study.protocolSection?.conditionsModule?.conditions,
+            interventions: study.protocolSection?.armsInterventionsModule?.interventions?.map(int => int.name),
+            enrollment: study.protocolSection?.designModule?.enrollmentInfo?.count,
+            study_type: study.protocolSection?.designModule?.studyType,
+            primary_purpose: study.protocolSection?.designModule?.designInfo?.primaryPurpose,
+            masking: study.protocolSection?.designModule?.designInfo?.maskingInfo?.masking,
+            allocation: study.protocolSection?.designModule?.designInfo?.allocation,
+            url: `https://clinicaltrials.gov/study/${study.protocolSection?.identificationModule?.nctId}`,
+            last_update_date: study.protocolSection?.statusModule?.lastUpdateSubmitDate
+        })) || [];
 
-/**
- * Calculate relevance across databases
- */
-function calculateCrossDbRelevance(result, query, allResults) {
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2);
-    let relevanceScore = 0;
-    
-    // Check query term matches with weights
-    queryTerms.forEach(term => {
-        if (result.title?.toLowerCase().includes(term)) relevanceScore += 3;
-        if (result.details?.toLowerCase().includes(term)) relevanceScore += 2;
-        if (result.sponsor?.toLowerCase().includes(term)) relevanceScore += 1;
-        if (result.type?.toLowerCase().includes(term)) relevanceScore += 1;
-    });
-    
-    // Bonus for high-value databases
-    const premiumDatabases = ['EvaluatePharma', 'ClinicalTrials.gov', 'ChEMBL', 'Open Targets'];
-    if (premiumDatabases.includes(result.database)) {
-        relevanceScore += 2;
+        res.status(200).json({
+            results: results,
+            total: data.totalCount || 0,
+            query: query,
+            source: 'ClinicalTrials.gov',
+            search_timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('ClinicalTrials.gov search error:', error);
+        res.status(500).json({
+            error: 'Failed to search ClinicalTrials.gov',
+            message: error.message,
+            query: query
+        });
     }
-    
-    // Bonus for recent data
-    if (result.year && result.year >= new Date().getFullYear() - 2) {
-        relevanceScore += 1;
-    }
-    
-    return Math.min(relevanceScore, 10); // Cap at 10
-}
-
-/**
- * Calculate data completeness percentage
- */
-function calculateDataCompleteness(result) {
-    const criticalFields = ['title', 'details', 'status', 'database', 'link'];
-    const optionalFields = ['phase', 'sponsor', 'year', 'enrollment', 'type'];
-    
-    let completenessScore = 0;
-    const totalPossibleScore = criticalFields.length * 2 + optionalFields.length;
-    
-    criticalFields.forEach(field => {
-        if (result[field] && result[field] !== 'N/A' && result[field] !== 'Unknown' && result[field] !== '#') {
-            completenessScore += 2; // Critical fields worth more
-        }
-    });
-    
-    optionalFields.forEach(field => {
-        if (result[field] && result[field] !== 'N/A' && result[field] !== 'Unknown') {
-            completenessScore += 1;
-        }
-    });
-    
-    return Math.round((completenessScore / totalPossibleScore) * 100);
-}
-
-/**
- * Calculate query match score
- */
-function calculateQueryMatchScore(result, query) {
-    const queryLower = query.toLowerCase();
-    let score = 0;
-    
-    if (result.title?.toLowerCase().includes(queryLower)) score += 5;
-    if (result.details?.toLowerCase().includes(queryLower)) score += 3;
-    if (result.sponsor?.toLowerCase().includes(queryLower)) score += 1;
-    if (result.type?.toLowerCase().includes(queryLower)) score += 1;
-    
-    return Math.min(score, 10);
-}
-
-/**
- * Get database confidence rating
- */
-function getDatabaseConfidence(database) {
-    const confidenceRatings = {
-        'ClinicalTrials.gov': 'very-high',
-        'Open Targets': 'high',
-        'ChEMBL': 'high',
-        'DrugBank': 'high',
-        'EvaluatePharma': 'high',
-        'PubMed': 'very-high',
-        'ClinVar': 'high',
-        'UniProt': 'high',
-        'Human Protein Atlas': 'medium',
-        'Mouse Genome Informatics': 'medium',
-        'IUPHAR/BPS': 'medium'
-    };
-    
-    return confidenceRatings[database] || 'low';
-}
-
-/**
- * Calculate data freshness score
- */
-function calculateDataFreshness(result) {
-    if (!result.year) return 'unknown';
-    
-    const currentYear = new Date().getFullYear();
-    const age = currentYear - result.year;
-    
-    if (age <= 1) return 'very-fresh';
-    if (age <= 3) return 'fresh';
-    if (age <= 5) return 'moderate';
-    if (age <= 10) return 'aged';
-    return 'old';
-}
-
-/**
- * Get extreme database metric (min/max)
- */
-function getExtremeDatabaseMetric(metrics, field, type) {
-    const validMetrics = Object.entries(metrics)
-        .filter(([_, metric]) => metric.status === 'success' && metric[field] != null)
-        .map(([db, metric]) => ({ database: db, value: metric[field] }));
-    
-    if (validMetrics.length === 0) return null;
-    
-    const sortedMetrics = validMetrics.sort((a, b) => 
-        type === 'min' ? a.value - b.value : b.value - a.value
-    );
-    
-    return sortedMetrics[0];
-}
-
-/**
- * Calculate average response time
- */
-function calculateAverageResponseTime(metrics) {
-    const validResponseTimes = Object.values(metrics)
-        .filter(metric => metric.status === 'success' && metric.response_time != null)
-        .map(metric => metric.response_time);
-    
-    if (validResponseTimes.length === 0) return null;
-    
-    return Math.round(validResponseTimes.reduce((sum, time) => sum + time, 0) / validResponseTimes.length);
-}
-
-/**
- * Calculate success rate percentage
- */
-function calculateSuccessRate(successful, total) {
-    if (total === 0) return 0;
-    return Math.round((successful / total) * 100);
-}
-
-/**
- * Calculate average completeness score
- */
-function calculateAverageCompleteness(results) {
-    if (results.length === 0) return 0;
-    
-    const total = results.reduce((sum, result) => sum + (result.data_completeness || 0), 0);
-    return Math.round(total / results.length);
-}
-
-/**
- * Categorize system load based on search time
- */
-function categorizeSystemLoad(searchTime) {
-    if (searchTime < 5000) return 'low';
-    if (searchTime < 15000) return 'medium';
-    if (searchTime < 30000) return 'high';
-    return 'critical';
-}
-
-/**
- * Calculate overall data quality score
- */
-function calculateDataQualityScore(results) {
-    if (results.length === 0) return 0;
-    
-    const qualityScores = { 'high': 3, 'medium': 2, 'low': 1 };
-    const totalScore = results.reduce((sum, result) => 
-        sum + (qualityScores[result.data_quality] || 0), 0);
-    
-    return Math.round((totalScore / (results.length * 3)) * 100);
 }
