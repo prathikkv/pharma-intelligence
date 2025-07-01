@@ -2,11 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Enhanced environment variables
+  // Only add environment variables that exist and are custom
   env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
-    NODE_ENV: process.env.NODE_ENV,
-    VERCEL_URL: process.env.VERCEL_URL,
+    // Add your custom environment variables here if needed
+    // Example: API_KEY: process.env.API_KEY,
   },
 
   // API configuration for better performance
@@ -19,52 +18,21 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
           { key: 'Access-Control-Max-Age', value: '86400' },
-          { key: 'Cache-Control', value: 'public, s-maxage=60, stale-while-revalidate=300' },
         ],
       },
     ];
-  },
-
-  // Optimize for serverless functions
-  experimental: {
-    serverComponentsExternalPackages: [],
   },
 
   // Performance optimizations
   compress: true,
   poweredByHeader: false,
   
-  // Image optimization (if needed for future enhancements)
-  images: {
-    domains: ['www.ebi.ac.uk', 'www.uniprot.org', 'clinicaltrials.gov'],
-    formats: ['image/webp', 'image/avif'],
-  },
-
-  // Webpack configuration for better bundle optimization
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Optimize bundle size
-    if (!dev && !isServer) {
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-          },
-        },
-      };
-    }
-
-    // Handle potential issues with external API calls
-    config.externals = config.externals || [];
+  // Simplified webpack configuration
+  webpack: (config, { isServer }) => {
+    // Only add necessary external packages for server-side
     if (isServer) {
-      config.externals.push({
-        'utf-8-validate': 'commonjs utf-8-validate',
-        'bufferutil': 'commonjs bufferutil',
-      });
+      config.externals = config.externals || [];
     }
-
     return config;
   },
 
@@ -79,7 +47,7 @@ const nextConfig = {
     ];
   },
 
-  // Enhanced security headers
+  // Health check rewrite
   async rewrites() {
     return [
       {
