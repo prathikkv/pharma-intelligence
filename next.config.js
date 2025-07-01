@@ -65,8 +65,6 @@ const nextConfig = {
   experimental: {
     // Enable modern JavaScript features
     esmExternals: true,
-    // Server components (if using Next.js 13+)
-    appDir: false, // Set to true if using app directory
     // Webpack build worker for faster builds
     webpackBuildWorker: true,
   },

@@ -29,7 +29,7 @@ const PharmaceuticalIntelligenceSystem = () => {
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [expandedResult, setExpandedResult] = useState(null);
 
-    // Database Configuration - Production Ready
+    // Database Configuration - Production Ready (10 databases)
     const databases = [
         { 
             id: 'clinicaltrials', 
@@ -110,14 +110,6 @@ const PharmaceuticalIntelligenceSystem = () => {
             endpoint: '/api/search/iuphar',
             icon: '💉',
             category: 'Pharmacology'
-        },
-        { 
-            id: 'evaluatepharma', 
-            name: 'EvaluatePharma', 
-            description: 'Market intelligence data',
-            endpoint: '/api/search/evaluatepharma',
-            icon: '📊',
-            category: 'Market'
         }
     ];
 
