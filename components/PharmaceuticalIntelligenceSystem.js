@@ -697,7 +697,7 @@ const PharmaceuticalIntelligenceSystem = () => {
     }, [searchLogs, searchQuery, selectedDatabases, results, processedResults, apiStatus, addLog]);
 
     /**
-     * Render enhanced progress indicator
+     * Render enhanced progress indicator with smooth animations
      */
     const renderProgressIndicator = () => {
         if (!loading) return null;
@@ -705,83 +705,94 @@ const PharmaceuticalIntelligenceSystem = () => {
         const progress = searchProgress.total > 0 ? (searchProgress.current / searchProgress.total) * 100 : 0;
         
         return (
-            <div style={{
-                position: 'fixed',
-                top: '20px',
-                right: '20px',
-                background: 'rgba(255, 255, 255, 0.95)',
-                padding: '15px 20px',
-                borderRadius: '12px',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                zIndex: 1000,
-                minWidth: '200px'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                    <div className="spin" style={{ fontSize: '1.2em' }}>🔄</div>
-                    <span style={{ fontWeight: '600', color: '#333' }}>Searching...</span>
+            <div className="fixed top-5 right-5 glass-card p-4 min-w-64 z-50">
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="loading-spinner text-xl">🔄</div>
+                    <span className="font-semibold text-slate-700">Searching Databases</span>
                 </div>
-                <div style={{ fontSize: '0.85em', color: '#666', marginBottom: '8px' }}>
-                    {searchProgress.current} of {searchProgress.total} databases
+                <div className="text-sm text-slate-600 mb-3">
+                    {searchProgress.current} of {searchProgress.total} databases completed
                 </div>
-                <div style={{
-                    width: '100%',
-                    height: '4px',
-                    background: '#e2e8f0',
-                    borderRadius: '2px',
-                    overflow: 'hidden'
-                }}>
-                    <div style={{
-                        width: `${progress}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #4f46e5, #7c3aed)',
-                        transition: 'width 0.3s ease'
-                    }} />
+                <div className="progress-container">
+                    <div 
+                        className="progress-bar"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+                <div className="text-xs text-slate-500 mt-2">
+                    This may take up to 30 seconds...
                 </div>
             </div>
         );
     };
 
     /**
-     * Render enhanced error display
+     * Render enhanced error display with better UX
      */
     const renderErrorDisplay = () => {
         if (!error) return null;
 
         const isWarning = error.toLowerCase().includes('warning');
+        const isCritical = error.toLowerCase().includes('critical') || error.toLowerCase().includes('failed');
         
         return (
-            <div style={{
-                background: isWarning ? 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
-                color: isWarning ? '#92400e' : '#991b1b',
-                padding: '16px 20px',
-                borderRadius: '12px',
-                marginBottom: '20px',
-                border: `1px solid ${isWarning ? '#f59e0b' : '#ef4444'}`,
-                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <span style={{ fontSize: '1.2em' }}>{isWarning ? '⚠️' : '❌'}</span>
-                    <div style={{ flex: 1 }}>
-                        <strong>{isWarning ? 'Warning' : 'Error'}:</strong> {error}
-                        {searchLogs.length > 0 && (
-                            <div style={{ marginTop: '8px' }}>
+            <div className={`card mb-6 border-l-4 ${
+                isCritical ? 'border-red-500 bg-red-50' : 
+                isWarning ? 'border-yellow-500 bg-yellow-50' : 
+                'border-blue-500 bg-blue-50'
+            }`}>
+                <div className="card-body">
+                    <div className="flex items-start gap-4">
+                        <div className="text-2xl">
+                            {isCritical ? '❌' : isWarning ? '⚠️' : 'ℹ️'}
+                        </div>
+                        <div className="flex-1">
+                            <h4 className={`font-semibold mb-2 ${
+                                isCritical ? 'text-red-800' : 
+                                isWarning ? 'text-yellow-800' : 
+                                'text-blue-800'
+                            }`}>
+                                {isCritical ? 'Critical Error' : isWarning ? 'Warning' : 'Notice'}
+                            </h4>
+                            <p className={`mb-3 ${
+                                isCritical ? 'text-red-700' : 
+                                isWarning ? 'text-yellow-700' : 
+                                'text-blue-700'
+                            }`}>
+                                {error}
+                            </p>
+                            
+                            {/* Action buttons */}
+                            <div className="flex gap-3">
+                                {searchLogs.length > 0 && (
+                                    <button
+                                        onClick={() => setShowLogs(!showLogs)}
+                                        className="btn btn-ghost text-sm"
+                                    >
+                                        {showLogs ? '🔽 Hide' : '🔍 Show'} Logs
+                                    </button>
+                                )}
+                                
+                                {isCritical && (
+                                    <button
+                                        onClick={() => {
+                                            setError(null);
+                                            setSelectedDatabases(['clinicaltrials', 'opentargets']);
+                                        }}
+                                        className="btn btn-secondary text-sm"
+                                    >
+                                        🔄 Reset to Core Databases
+                                    </button>
+                                )}
+                                
                                 <button
-                                    onClick={() => setShowLogs(!showLogs)}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: isWarning ? '#92400e' : '#991b1b',
-                                        cursor: 'pointer',
-                                        textDecoration: 'underline',
-                                        fontSize: '0.85em'
-                                    }}
+                                    onClick={() => setError(null)}
+                                    className="btn btn-ghost text-sm"
                                 >
-                                    {showLogs ? 'Hide' : 'Show'} detailed logs
+                                    ✕ Dismiss
                                 </button>
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -887,121 +898,95 @@ const PharmaceuticalIntelligenceSystem = () => {
                     </div>
                 </div>
 
-                {/* Enhanced Database Selector */}
-                <div style={{ 
-                    background: 'rgba(255, 255, 255, 0.9)', 
-                    padding: '25px', 
-                    borderRadius: '16px', 
-                    marginBottom: '25px',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2em', color: '#334155', fontWeight: '600' }}>
-                            Select Databases ({selectedDatabases.length}/{databases.length})
-                        </h3>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={() => setSelectedDatabases(databases.map(db => db.id))}
-                                style={{
-                                    padding: '6px 12px',
-                                    background: '#10b981',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.8em',
-                                    fontWeight: '500'
-                                }}
-                            >
-                                Select All
-                            </button>
-                            <button
-                                onClick={() => setSelectedDatabases([])}
-                                style={{
-                                    padding: '6px 12px',
-                                    background: '#ef4444',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.8em',
-                                    fontWeight: '500'
-                                }}
-                            >
-                                Clear All
-                            </button>
+                {/* Enhanced Database Selector with Professional Styling */}
+                <div className="card mb-8">
+                    <div className="card-header">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-semibold text-slate-700">
+                                Select Databases ({selectedDatabases.length}/{databases.length})
+                            </h3>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setSelectedDatabases(databases.map(db => db.id))}
+                                    className="btn btn-success text-sm"
+                                >
+                                    Select All
+                                </button>
+                                <button
+                                    onClick={() => setSelectedDatabases([])}
+                                    className="btn btn-error text-sm"
+                                >
+                                    Clear All
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-                        gap: '12px' 
-                    }}>
-                        {databases.map(db => {
-                            const isSelected = selectedDatabases.includes(db.id);
-                            const status = apiStatus[db.id];
-                            
-                            return (
-                                <label 
-                                    key={db.id} 
-                                    style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        gap: '10px',
-                                        padding: '12px 16px',
-                                        background: isSelected 
-                                            ? `linear-gradient(135deg, ${db.color}20, ${db.color}30)` 
-                                            : 'rgba(255, 255, 255, 0.6)',
-                                        border: `2px solid ${isSelected ? db.color : 'rgba(148, 163, 184, 0.2)'}`,
-                                        borderRadius: '10px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.3s ease',
-                                        position: 'relative'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (!isSelected) {
-                                            e.target.style.background = 'rgba(255, 255, 255, 0.8)';
-                                            e.target.style.transform = 'translateY(-1px)';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (!isSelected) {
-                                            e.target.style.background = 'rgba(255, 255, 255, 0.6)';
-                                            e.target.style.transform = 'translateY(0)';
-                                        }
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={() => {
-                                            setSelectedDatabases(prev => {
-                                                if (prev.includes(db.id)) {
-                                                    return prev.filter(id => id !== db.id);
-                                                } else {
-                                                    return [...prev, db.id];
-                                                }
-                                            });
+                    <div className="card-body">
+                        <div className="database-grid">
+                            {databases.map(db => {
+                                const isSelected = selectedDatabases.includes(db.id);
+                                const status = apiStatus[db.id];
+                                
+                                return (
+                                    <label 
+                                        key={db.id} 
+                                        className={`database-card ${isSelected ? 'selected' : ''}`}
+                                        style={{
+                                            borderColor: isSelected ? db.color : 'var(--color-gray-200)',
+                                            background: isSelected 
+                                                ? `linear-gradient(135deg, ${db.color}15, ${db.color}25)` 
+                                                : 'var(--bg-card)'
                                         }}
-                                        style={{ margin: 0, transform: 'scale(1.1)' }}
-                                    />
-                                    <span style={{ fontSize: '1.3em' }}>{db.icon}</span>
-                                    <div style={{ flex: 1 }}>
-                                        <span style={{ fontSize: '0.9em', fontWeight: '600', color: '#334155' }}>
-                                            {db.name}
-                                        </span>
-                                        {status && (
-                                            <div style={{ fontSize: '0.7em', color: status.online ? '#10b981' : '#ef4444', marginTop: '2px' }}>
-                                                {status.online ? '🟢 Online' : '🔴 Offline'}
-                                                {status.responseTime && ` (${Math.round(status.responseTime)}ms)`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => {
+                                                    setSelectedDatabases(prev => {
+                                                        if (prev.includes(db.id)) {
+                                                            return prev.filter(id => id !== db.id);
+                                                        } else {
+                                                            return [...prev, db.id];
+                                                        }
+                                                    });
+                                                }}
+                                                className="w-4 h-4 transform scale-110"
+                                            />
+                                            <span className="text-2xl">{db.icon}</span>
+                                            <div className="flex-1">
+                                                <div className="font-semibold text-slate-700 mb-1">
+                                                    {db.name}
+                                                </div>
+                                                {status && (
+                                                    <div className={`status-badge ${status.online ? 'status-online' : 'status-offline'}`}>
+                                                        {status.online ? (
+                                                            <span className="flex items-center gap-1">
+                                                                🟢 Online
+                                                                {status.responseTime && (
+                                                                    <span className="text-xs">
+                                                                        ({Math.round(status.responseTime)}ms)
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex items-center gap-1">
+                                                                🔴 Offline
+                                                                {status.error && (
+                                                                    <span className="text-xs" title={status.error}>
+                                                                        ({status.error.slice(0, 10)}...)
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                </label>
-                            );
-                        })}
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -1097,82 +1082,653 @@ const PharmaceuticalIntelligenceSystem = () => {
                     </div>
                 )}
 
-                {/* Continue with rest of the component... */}
-                {/* Note: This is getting quite long. Should I continue with the remaining parts in another artifact? */}
-                {results.length > 0 && (
-                    <div style={{ 
-                        background: 'rgba(255, 255, 255, 0.9)', 
-                        padding: '20px', 
-                        borderRadius: '16px',
-                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-                        backdropFilter: 'blur(10px)'
-                    }}>
-                        <h3 style={{ margin: '0 0 15px 0', color: '#334155' }}>
-                            Search Results ({processedResults.length} of {results.length})
-                        </h3>
-                        <p style={{ color: '#64748b', fontSize: '0.9em' }}>
-                            Results retrieved and processed successfully. Use filters below to refine your search.
-                        </p>
-                    </div>
-                )}
+    /**
+     * Render enhanced logs display with professional styling
+     */
+    const renderLogsDisplay = () => {
+        if (!showLogs || searchLogs.length === 0) return null;
 
-                {/* Welcome/Empty State */}
+        return (
+            <div className="card mb-6">
+                <div className="card-header">
+                    <div className="flex justify-between items-center">
+                        <h4 className="font-semibold text-slate-700">Search Logs</h4>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => exportLogs('json')}
+                                className="btn btn-secondary text-sm"
+                            >
+                                📄 Export JSON
+                            </button>
+                            <button
+                                onClick={() => exportLogs('csv')}
+                                className="btn btn-success text-sm"
+                            >
+                                📊 Export CSV
+                            </button>
+                            <button
+                                onClick={() => setSearchLogs([])}
+                                className="btn btn-error text-sm"
+                            >
+                                🗑️ Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div className="card-body max-h-80 overflow-y-auto">
+                    {searchLogs.slice(0, 50).map(log => (
+                        <div 
+                            key={log.id} 
+                            className={`p-3 mb-2 rounded-lg border-l-4 ${
+                                log.level === 'error' ? 'bg-red-50 border-red-500' : 
+                                log.level === 'warn' ? 'bg-yellow-50 border-yellow-500' : 
+                                log.level === 'success' ? 'bg-green-50 border-green-500' : 
+                                'bg-blue-50 border-blue-500'
+                            }`}
+                        >
+                            <div className="flex justify-between items-start mb-1">
+                                <span className={`font-medium text-sm ${
+                                    log.level === 'error' ? 'text-red-800' :
+                                    log.level === 'warn' ? 'text-yellow-800' :
+                                    log.level === 'success' ? 'text-green-800' :
+                                    'text-blue-800'
+                                }`}>
+                                    {log.message}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                </span>
+                            </div>
+                            {log.data && (
+                                <div className="text-xs text-slate-600 mt-1 bg-white bg-opacity-50 p-2 rounded">
+                                    {typeof log.data === 'object' ? 
+                                        JSON.stringify(log.data, null, 2) : 
+                                        String(log.data)
+                                    }
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    /**
+     * Render enhanced visualization with professional charts
+     */
+    const renderVisualization = () => {
+        if (!visualizationData || !showVisualization) return null;
+
+        return (
+            <div className="card mb-6">
+                <div className="card-header">
+                    <div className="flex justify-between items-center">
+                        <h3 className="font-semibold text-slate-700">Results Overview</h3>
+                        <button 
+                            onClick={() => setShowVisualization(!showVisualization)}
+                            className="btn btn-ghost text-sm"
+                        >
+                            {showVisualization ? '📊 Hide Charts' : '📈 Show Charts'}
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="card-body">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {/* Database Distribution */}
+                        <div className="glass-card p-4">
+                            <h4 className="font-medium text-slate-700 mb-3 text-sm">
+                                Database Distribution
+                            </h4>
+                            <div className="space-y-2">
+                                {Object.entries(visualizationData.databaseCounts)
+                                    .sort(([,a], [,b]) => b - a)
+                                    .slice(0, 5)
+                                    .map(([database, count]) => (
+                                        <div key={database} className="flex justify-between items-center text-xs">
+                                            <span className="truncate pr-2">{database}</span>
+                                            <div className="flex items-center gap-2">
+                                                <div 
+                                                    className="h-2 bg-indigo-500 rounded-full"
+                                                    style={{ 
+                                                        width: `${Math.max(10, (count / Math.max(...Object.values(visualizationData.databaseCounts))) * 40)}px` 
+                                                    }}
+                                                />
+                                                <span className="font-medium text-slate-600">{count}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Phase Distribution */}
+                        <div className="glass-card p-4">
+                            <h4 className="font-medium text-slate-700 mb-3 text-sm">
+                                Development Phases
+                            </h4>
+                            <div className="space-y-2">
+                                {Object.entries(visualizationData.phaseCounts)
+                                    .sort(([,a], [,b]) => b - a)
+                                    .slice(0, 5)
+                                    .map(([phase, count]) => (
+                                        <div key={phase} className="flex justify-between items-center text-xs">
+                                            <span className="truncate pr-2">{phase}</span>
+                                            <div className="flex items-center gap-2">
+                                                <div 
+                                                    className="h-2 bg-purple-500 rounded-full"
+                                                    style={{ 
+                                                        width: `${Math.max(10, (count / Math.max(...Object.values(visualizationData.phaseCounts))) * 40)}px` 
+                                                    }}
+                                                />
+                                                <span className="font-medium text-slate-600">{count}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Status Distribution */}
+                        <div className="glass-card p-4">
+                            <h4 className="font-medium text-slate-700 mb-3 text-sm">
+                                Status Distribution
+                            </h4>
+                            <div className="space-y-2">
+                                {Object.entries(visualizationData.statusCounts)
+                                    .sort(([,a], [,b]) => b - a)
+                                    .slice(0, 5)
+                                    .map(([status, count]) => (
+                                        <div key={status} className="flex justify-between items-center text-xs">
+                                            <span className="truncate pr-2">{status}</span>
+                                            <div className="flex items-center gap-2">
+                                                <div 
+                                                    className="h-2 bg-emerald-500 rounded-full"
+                                                    style={{ 
+                                                        width: `${Math.max(10, (count / Math.max(...Object.values(visualizationData.statusCounts))) * 40)}px` 
+                                                    }}
+                                                />
+                                                <span className="font-medium text-slate-600">{count}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Quality Distribution */}
+                        <div className="glass-card p-4">
+                            <h4 className="font-medium text-slate-700 mb-3 text-sm">
+                                Data Quality
+                            </h4>
+                            <div className="space-y-2">
+                                {Object.entries(visualizationData.qualityCounts)
+                                    .sort(([,a], [,b]) => b - a)
+                                    .map(([quality, count]) => (
+                                        <div key={quality} className="flex justify-between items-center text-xs">
+                                            <span className="capitalize truncate pr-2">{quality}</span>
+                                            <div className="flex items-center gap-2">
+                                                <div 
+                                                    className={`h-2 rounded-full ${
+                                                        quality === 'high' ? 'bg-green-500' :
+                                                        quality === 'medium' ? 'bg-yellow-500' :
+                                                        'bg-red-500'
+                                                    }`}
+                                                    style={{ 
+                                                        width: `${Math.max(10, (count / Math.max(...Object.values(visualizationData.qualityCounts))) * 40)}px` 
+                                                    }}
+                                                />
+                                                <span className="font-medium text-slate-600">{count}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Quick Stats Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-200">
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-indigo-600">{results.length}</div>
+                            <div className="text-xs text-slate-600">Total Results</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-purple-600">{processedResults.length}</div>
+                            <div className="text-xs text-slate-600">Filtered Results</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-emerald-600">
+                                {results.filter(r => r.result_quality === 'high').length}
+                            </div>
+                            <div className="text-xs text-slate-600">High Quality</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-pink-600">{bookmarkedItems.size}</div>
+                            <div className="text-xs text-slate-600">Bookmarked</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    /**
+     * Render enhanced filters section
+     */
+    const renderFilters = () => {
+        if (!showFilters || !results.length) return null;
+
+        return (
+            <div className="card mb-6">
+                <div className="card-header">
+                    <div className="flex justify-between items-center">
+                        <h4 className="font-semibold text-slate-700">Filters & Search</h4>
+                        <button 
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="btn btn-ghost text-sm"
+                        >
+                            {showFilters ? '🔽 Hide' : '🔼 Show'} Filters
+                        </button>
+                    </div>
+                </div>
+
+                <div className="card-body">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                        {/* Database Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Database
+                            </label>
+                            <select 
+                                value={filters.database} 
+                                onChange={(e) => setFilters(prev => ({ ...prev, database: e.target.value }))}
+                                className="input-field text-sm"
+                            >
+                                <option value="all">All Databases</option>
+                                {filterOptions.databases.map(db => (
+                                    <option key={db} value={db}>{db}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Phase Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Phase
+                            </label>
+                            <select 
+                                value={filters.phase} 
+                                onChange={(e) => setFilters(prev => ({ ...prev, phase: e.target.value }))}
+                                className="input-field text-sm"
+                            >
+                                <option value="all">All Phases</option>
+                                {filterOptions.phases.map(phase => (
+                                    <option key={phase} value={phase}>{phase}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Status
+                            </label>
+                            <select 
+                                value={filters.status} 
+                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                                className="input-field text-sm"
+                            >
+                                <option value="all">All Statuses</option>
+                                {filterOptions.statuses.map(status => (
+                                    <option key={status} value={status}>{status}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Year Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Since Year
+                            </label>
+                            <select 
+                                value={filters.year} 
+                                onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value }))}
+                                className="input-field text-sm"
+                            >
+                                <option value="all">All Years</option>
+                                {filterOptions.years.slice(0, 10).map(year => (
+                                    <option key={year} value={year}>Since {year}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Type Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Type
+                            </label>
+                            <select 
+                                value={filters.type} 
+                                onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
+                                className="input-field text-sm"
+                            >
+                                <option value="all">All Types</option>
+                                {filterOptions.types.slice(0, 10).map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Search within results */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Search within results
+                        </label>
+                        <input
+                            type="text"
+                            value={searchWithinResults}
+                            onChange={(e) => setSearchWithinResults(e.target.value)}
+                            placeholder="Filter current results..."
+                            className="input-field"
+                        />
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap gap-3">
+                        <button 
+                            onClick={() => handleExport('csv')}
+                            className="btn btn-success"
+                        >
+                            📊 Export CSV
+                        </button>
+                        <button 
+                            onClick={() => handleExport('json')}
+                            className="btn btn-secondary"
+                        >
+                            📄 Export JSON
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setFilters({ database: 'all', phase: 'all', status: 'all', year: 'all', type: 'all' });
+                                setSearchWithinResults('');
+                            }}
+                            className="btn btn-ghost"
+                        >
+                            🔄 Clear Filters
+                        </button>
+                        <button
+                            onClick={() => setShowLogs(!showLogs)}
+                            className="btn btn-ghost"
+                        >
+                            📜 {showLogs ? 'Hide' : 'Show'} Logs
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    /**
+     * Render enhanced results table
+     */
+    const renderResultsTable = () => {
+        if (!processedResults.length) return null;
+
+        return (
+            <div className="table-container">
+                <div className="overflow-x-auto">
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th onClick={() => handleSort('database')} className="cursor-pointer hover:bg-slate-100">
+                                    Database {sortConfig.key === 'database' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('display_title')} className="cursor-pointer hover:bg-slate-100">
+                                    Title {sortConfig.key === 'display_title' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('type')} className="cursor-pointer hover:bg-slate-100">
+                                    Type {sortConfig.key === 'type' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('display_status')} className="cursor-pointer hover:bg-slate-100">
+                                    Status {sortConfig.key === 'display_status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('phase')} className="cursor-pointer hover:bg-slate-100">
+                                    Phase {sortConfig.key === 'phase' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('year')} className="cursor-pointer hover:bg-slate-100">
+                                    Year {sortConfig.key === 'year' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('data_completeness')} className="cursor-pointer hover:bg-slate-100">
+                                    Quality {sortConfig.key === 'data_completeness' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {processedResults.map((result, index) => (
+                                <tr key={result.id || index} className="hover:bg-slate-50">
+                                    <td>
+                                        <span className={`status-badge ${getDatabaseColor(result.database)}`}>
+                                            {result.database}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <div className="font-medium text-slate-800 mb-1">
+                                                {result.display_title}
+                                            </div>
+                                            <div className="text-xs text-slate-600 line-clamp-2">
+                                                {result.display_details}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className="text-sm text-slate-700">
+                                            {result.type || 'Research'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span className={`status-badge ${getStatusColor(result.display_status)}`}>
+                                            {result.display_status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span className="text-sm text-slate-700">
+                                            {result.phase}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span className="text-sm text-slate-700">
+                                            {result.year}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${
+                                                result.result_quality === 'high' ? 'bg-green-500' :
+                                                result.result_quality === 'medium' ? 'bg-yellow-500' :
+                                                'bg-red-500'
+                                            }`} />
+                                            <span className="text-xs text-slate-600">
+                                                {result.completeness_score || 0}%
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => handleBookmarkToggle(result.id)}
+                                                className={`btn btn-ghost text-sm p-1 ${
+                                                    bookmarkedItems.has(result.id) ? 'text-yellow-500' : 'text-slate-400'
+                                                }`}
+                                                title={bookmarkedItems.has(result.id) ? 'Remove bookmark' : 'Add bookmark'}
+                                            >
+                                                ★
+                                            </button>
+                                            {result.link && result.link !== '#' && (
+                                                <a 
+                                                    href={result.link} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="btn btn-ghost text-sm p-1 text-indigo-600 hover:text-indigo-800"
+                                                >
+                                                    🔗
+                                                </a>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    // Helper functions for styling
+    const getDatabaseColor = (database) => {
+        const db = databases.find(d => d.name === database || d.id === database);
+        return db ? db.color : 'var(--color-gray-500)';
+    };
+
+    const getStatusColor = (status) => {
+        if (status?.toLowerCase().includes('recruiting') || status?.toLowerCase().includes('active')) {
+            return 'status-online';
+        }
+        if (status?.toLowerCase().includes('completed') || status?.toLowerCase().includes('approved')) {
+            return 'status-online';
+        }
+        if (status?.toLowerCase().includes('terminated') || status?.toLowerCase().includes('withdrawn')) {
+            return 'status-offline';
+        }
+        return 'status-warning';
+    };
+
+                {/* Welcome/Empty State with Professional Design */}
                 {!loading && !searchQuery && (
-                    <div style={{ 
-                        textAlign: 'center', 
-                        padding: '80px 40px',
-                        background: 'rgba(255, 255, 255, 0.9)',
-                        borderRadius: '20px',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-                        backdropFilter: 'blur(10px)'
-                    }}>
-                        <div style={{ fontSize: '4em', marginBottom: '25px' }}>🚀</div>
-                        <h3 style={{ color: '#334155', marginBottom: '20px', fontSize: '1.8em', fontWeight: '600' }}>
+                    <div className="card text-center p-16">
+                        <div className="text-6xl mb-6 loading-bounce">🚀</div>
+                        <h3 className="text-2xl font-semibold text-slate-700 mb-5">
                             Welcome to IntelliGRID
                         </h3>
-                        <p style={{ color: '#64748b', marginBottom: '35px', lineHeight: '1.7', fontSize: '1.1em', maxWidth: '600px', margin: '0 auto 35px' }}>
+                        <p className="text-lg text-slate-600 mb-8 leading-relaxed max-w-3xl mx-auto">
                             Search across 11+ major biomedical databases simultaneously. 
-                            Get unlimited results with advanced filtering, data visualization, and comprehensive logging.
+                            Get unlimited results with advanced filtering, real-time monitoring, and comprehensive logging.
                         </p>
-                        <div style={{ 
-                            display: 'grid', 
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                            gap: '20px',
-                            marginTop: '35px',
-                            textAlign: 'left'
-                        }}>
-                            <div style={{ 
-                                padding: '20px', 
-                                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', 
-                                borderRadius: '12px',
-                                border: '1px solid rgba(148, 163, 184, 0.2)'
-                            }}>
-                                <h4 style={{ margin: '0 0 12px 0', color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        
+                        <div className="grid md:grid-cols-3 gap-6 mt-8 text-left max-w-4xl mx-auto">
+                            <div className="glass-card p-6">
+                                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
                                     🔬 Example Searches
                                 </h4>
-                                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.95em', color: '#64748b', lineHeight: '1.6' }}>
-                                    <li>Alzheimer disease trials</li>
-                                    <li>BRCA1 mutations</li>
-                                    <li>immunotherapy cancer</li>
-                                    <li>diabetes GLP-1 agonist</li>
+                                <ul className="space-y-2 text-sm text-slate-600">
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                        Alzheimer disease trials
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                        BRCA1 mutations
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-pink-500 rounded-full"></span>
+                                        immunotherapy cancer
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                        diabetes GLP-1 agonist
+                                    </li>
                                 </ul>
                             </div>
-                            <div style={{ 
-                                padding: '20px', 
-                                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', 
-                                borderRadius: '12px',
-                                border: '1px solid rgba(148, 163, 184, 0.2)'
-                            }}>
-                                <h4 style={{ margin: '0 0 12px 0', color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    📊 Features
+                            
+                            <div className="glass-card p-6">
+                                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    📊 Key Features
                                 </h4>
-                                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.95em', color: '#64748b', lineHeight: '1.6' }}>
-                                    <li>Unlimited results</li>
-                                    <li>Advanced filtering</li>
-                                    <li>Real-time logging</li>
-                                    <li>CSV/JSON export</li>
+                                <ul className="space-y-2 text-sm text-slate-600">
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                        Unlimited results
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                        Advanced filtering
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-teal-500 rounded-full"></span>
+                                        Real-time monitoring
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
+                                        CSV/JSON export
+                                    </li>
                                 </ul>
                             </div>
+                            
+                            <div className="glass-card p-6">
+                                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    🏥 Data Sources
+                                </h4>
+                                <ul className="space-y-2 text-sm text-slate-600">
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                        Clinical trials
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                                        Drug databases
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                                        Genetic variants
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-lime-500 rounded-full"></span>
+                                        Research literature
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        {/* System Status */}
+                        {Object.keys(apiStatus).length > 0 && (
+                            <div className="mt-8 p-4 bg-slate-50 rounded-lg">
+                                <h5 className="font-medium text-slate-700 mb-2">System Status</h5>
+                                <div className="flex justify-center gap-4 text-xs">
+                                    <span className="status-badge status-online">
+                                        {Object.values(apiStatus).filter(s => s.online).length} Online
+                                    </span>
+                                    <span className="status-badge status-offline">
+                                        {Object.values(apiStatus).filter(s => !s.online).length} Offline
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                
+                {/* No Results State */}
+                {!loading && !results.length && searchQuery && (
+                    <div className="card text-center p-12">
+                        <div className="text-5xl mb-6">🔍</div>
+                        <h3 className="text-xl font-semibold text-slate-700 mb-3">No Results Found</h3>
+                        <p className="text-slate-600 mb-6 leading-relaxed">
+                            No results found for "<span className="font-medium text-slate-800">{searchQuery}</span>". 
+                            Try different keywords or select more databases.
+                        </p>
+                        <div className="flex justify-center gap-3">
+                            <button 
+                                onClick={() => setSearchQuery('')}
+                                className="btn btn-secondary"
+                            >
+                                🔄 Clear Search
+                            </button>
+                            <button 
+                                onClick={() => setSelectedDatabases(databases.map(db => db.id))}
+                                className="btn btn-primary"
+                            >
+                                📡 Select All Databases
+                            </button>
                         </div>
                     </div>
                 )}
