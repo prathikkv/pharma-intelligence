@@ -1,710 +1,830 @@
-// OpenTarget.js - Fixed Implementation for Clinical Precedence Data
-// This module handles Open Targets Platform GraphQL API queries for drug-disease-target associations
+// OpenTargetsComponent.jsx - React Component for Open Targets Clinical Precedence Data
+// This component integrates with your existing pharma-intelligence UI
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import OpenTargetService from './OpenTarget.js'; // Import our fixed service
 
 /**
- * Open Targets Platform API Configuration
- * Using the current GraphQL endpoint and proper query structure
+ * Main OpenTargets Component
+ * Integrates with your existing table-based UI to display clinical precedence data
  */
-const OPEN_TARGETS_CONFIG = {
-    // Current Open Targets Platform GraphQL API endpoint
-    baseUrl: 'https://api.platform.opentargets.org/api/v4/graphql',
-    
-    // Request headers for GraphQL API calls
-    headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    },
-    
-    // Default pagination and limits
-    pagination: {
-        defaultSize: 20,
-        maxSize: 100
-    }
-};
+const OpenTargetsComponent = ({ 
+    searchQuery = 'CHEMBL941', // Default to Imatinib
+    entityType = 'auto',
+    limit = 50,
+    onDataUpdate = null,
+    className = '',
+    showFilters = true 
+}) => {
+    // State management
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [filters, setFilters] = useState({
+        phase: 'all',
+        status: 'all',
+        drugType: 'all'
+    });
+    const [sortConfig, setSortConfig] = useState({
+        key: 'phase',
+        direction: 'desc'
+    });
 
-/**
- * GraphQL Query Templates
- * These queries are designed to get clinical precedence data for drug-disease-target associations
- */
-const GRAPHQL_QUERIES = {
-    // Query for drug-specific clinical precedence data
-    drugKnownDrugs: `
-        query DrugKnownDrugs($drugId: String!, $size: Int) {
-            drug(chemblId: $drugId) {
-                id
-                name
-                knownDrugs(size: $size) {
-                    count
-                    rows {
-                        drugId
-                        diseaseId
-                        targetId
-                        phase
-                        status
-                        mechanismOfAction
-                        approvedSymbol
-                        approvedName
-                        prefName
-                        label
-                        ctIds
-                        references {
-                            source
-                            urls
-                            ids
-                        }
-                        urls {
-                            url
-                            name
-                        }
-                        disease {
-                            id
-                            name
-                            therapeuticAreas {
-                                id
-                                name
-                            }
-                        }
-                        target {
-                            id
-                            approvedSymbol
-                            approvedName
-                            biotype
-                            genomicLocation {
-                                chromosome
-                                start
-                                end
-                            }
-                        }
-                        drug {
-                            id
-                            name
-                            drugType
-                            maximumClinicalTrialPhase
-                            isApproved
-                        }
-                    }
-                }
-            }
-        }
-    `,
-    
-    // Query for disease-specific clinical precedence data
-    diseaseKnownDrugs: `
-        query DiseaseKnownDrugs($diseaseId: String!, $size: Int) {
-            disease(efoId: $diseaseId) {
-                id
-                name
-                knownDrugs(size: $size) {
-                    count
-                    rows {
-                        drugId
-                        diseaseId
-                        targetId
-                        phase
-                        status
-                        mechanismOfAction
-                        approvedSymbol
-                        approvedName
-                        prefName
-                        label
-                        ctIds
-                        references {
-                            source
-                            urls
-                            ids
-                        }
-                        urls {
-                            url
-                            name
-                        }
-                        disease {
-                            id
-                            name
-                        }
-                        target {
-                            id
-                            approvedSymbol
-                            approvedName
-                            biotype
-                        }
-                        drug {
-                            id
-                            name
-                            drugType
-                            maximumClinicalTrialPhase
-                            isApproved
-                        }
-                    }
-                }
-            }
-        }
-    `,
-    
-    // Query for target-specific clinical precedence data  
-    targetKnownDrugs: `
-        query TargetKnownDrugs($targetId: String!, $size: Int) {
-            target(ensemblId: $targetId) {
-                id
-                approvedSymbol
-                approvedName
-                knownDrugs(size: $size) {
-                    count
-                    rows {
-                        drugId
-                        diseaseId
-                        targetId
-                        phase
-                        status
-                        mechanismOfAction
-                        approvedSymbol
-                        approvedName
-                        prefName
-                        label
-                        ctIds
-                        references {
-                            source
-                            urls
-                            ids
-                        }
-                        urls {
-                            url
-                            name
-                        }
-                        disease {
-                            id
-                            name
-                        }
-                        target {
-                            id
-                            approvedSymbol
-                            approvedName
-                            biotype
-                        }
-                        drug {
-                            id
-                            name
-                            drugType
-                            maximumClinicalTrialPhase
-                            isApproved
-                        }
-                    }
-                }
-            }
-        }
-    `
-};
-
-/**
- * OpenTarget Service Class
- * Handles all interactions with the Open Targets Platform API
- */
-class OpenTargetService {
-    constructor() {
-        this.config = OPEN_TARGETS_CONFIG;
-        this.queries = GRAPHQL_QUERIES;
-    }
+    // Initialize Open Targets service
+    const openTargetsService = useMemo(() => new OpenTargetService(), []);
 
     /**
-     * Generic GraphQL query executor with error handling and retry logic
-     * @param {string} query - GraphQL query string
-     * @param {Object} variables - Query variables
-     * @param {number} retries - Number of retry attempts
-     * @returns {Promise<Object>} API response data
+     * Fetch data from Open Targets Platform
      */
-    async executeGraphQLQuery(query, variables = {}, retries = 3) {
-        for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-                console.log(`Open Targets API Request (Attempt ${attempt}):`, {
-                    query: query.substring(0, 100) + '...',
-                    variables
-                });
+    const fetchData = useCallback(async () => {
+        if (!searchQuery) return;
 
-                const response = await fetch(this.config.baseUrl, {
-                    method: 'POST',
-                    headers: this.config.headers,
-                    body: JSON.stringify({
-                        query,
-                        variables
-                    })
-                });
+        setLoading(true);
+        setError(null);
 
-                // Check if response is ok
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                // Check for GraphQL errors
-                if (data.errors) {
-                    console.error('GraphQL errors:', data.errors);
-                    throw new Error(`GraphQL error: ${data.errors.map(e => e.message).join(', ')}`);
-                }
-
-                console.log('Open Targets API Response received successfully');
-                return data.data;
-
-            } catch (error) {
-                console.error(`Open Targets API attempt ${attempt} failed:`, error);
-                
-                if (attempt === retries) {
-                    throw new Error(`Open Targets API failed after ${retries} attempts: ${error.message}`);
-                }
-                
-                // Wait before retrying (exponential backoff)
-                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-            }
-        }
-    }
-
-    /**
-     * Search for clinical precedence data by drug
-     * @param {string} drugId - ChEMBL drug ID (e.g., 'CHEMBL941')
-     * @param {number} limit - Maximum number of results
-     * @returns {Promise<Array>} Formatted clinical precedence data
-     */
-    async searchByDrug(drugId, limit = 20) {
         try {
-            const data = await this.executeGraphQLQuery(
-                this.queries.drugKnownDrugs,
-                { 
-                    drugId: drugId,
-                    size: Math.min(limit, this.config.pagination.maxSize)
-                }
-            );
+            console.log('Fetching Open Targets data for:', searchQuery);
+            const results = await openTargetsService.search(searchQuery, entityType, limit);
+            
+            console.log('Open Targets results:', results);
+            setData(results);
 
-            if (!data.drug || !data.drug.knownDrugs) {
-                console.warn(`No clinical precedence data found for drug: ${drugId}`);
-                return [];
+            // Notify parent component of data update
+            if (onDataUpdate) {
+                onDataUpdate(results);
             }
 
-            return this.formatKnownDrugsData(data.drug.knownDrugs.rows, 'drug');
-
-        } catch (error) {
-            console.error('Error searching by drug:', error);
-            throw error;
+        } catch (err) {
+            console.error('Open Targets fetch error:', err);
+            setError(err.message);
+            setData([]);
+        } finally {
+            setLoading(false);
         }
-    }
+    }, [searchQuery, entityType, limit, openTargetsService, onDataUpdate]);
 
     /**
-     * Search for clinical precedence data by disease
-     * @param {string} diseaseId - EFO disease ID (e.g., 'EFO_0000685')  
-     * @param {number} limit - Maximum number of results
-     * @returns {Promise<Array>} Formatted clinical precedence data
+     * Effect to fetch data when search parameters change
      */
-    async searchByDisease(diseaseId, limit = 20) {
-        try {
-            const data = await this.executeGraphQLQuery(
-                this.queries.diseaseKnownDrugs,
-                { 
-                    diseaseId: diseaseId,
-                    size: Math.min(limit, this.config.pagination.maxSize)
-                }
-            );
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-            if (!data.disease || !data.disease.knownDrugs) {
-                console.warn(`No clinical precedence data found for disease: ${diseaseId}`);
-                return [];
+    /**
+     * Filter and sort the data based on current filters and sort configuration
+     */
+    const processedData = useMemo(() => {
+        let filtered = [...data];
+
+        // Apply filters
+        if (filters.phase !== 'all') {
+            filtered = filtered.filter(item => 
+                item.phase.toLowerCase().includes(filters.phase.toLowerCase())
+            );
+        }
+
+        if (filters.status !== 'all') {
+            filtered = filtered.filter(item => 
+                item.status.toLowerCase().includes(filters.status.toLowerCase())
+            );
+        }
+
+        if (filters.drugType !== 'all') {
+            filtered = filtered.filter(item => 
+                item.raw?.drug?.drugType?.toLowerCase() === filters.drugType.toLowerCase()
+            );
+        }
+
+        // Apply sorting
+        filtered.sort((a, b) => {
+            let aValue = a[sortConfig.key];
+            let bValue = b[sortConfig.key];
+
+            // Special handling for phase sorting
+            if (sortConfig.key === 'phase') {
+                aValue = a.raw?.phase || 0;
+                bValue = b.raw?.phase || 0;
             }
 
-            return this.formatKnownDrugsData(data.disease.knownDrugs.rows, 'disease');
-
-        } catch (error) {
-            console.error('Error searching by disease:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Search for clinical precedence data by target
-     * @param {string} targetId - Ensembl target ID (e.g., 'ENSG00000167733')
-     * @param {number} limit - Maximum number of results
-     * @returns {Promise<Array>} Formatted clinical precedence data
-     */
-    async searchByTarget(targetId, limit = 20) {
-        try {
-            const data = await this.executeGraphQLQuery(
-                this.queries.targetKnownDrugs,
-                { 
-                    targetId: targetId,
-                    size: Math.min(limit, this.config.pagination.maxSize)
-                }
-            );
-
-            if (!data.target || !data.target.knownDrugs) {
-                console.warn(`No clinical precedence data found for target: ${targetId}`);
-                return [];
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
             }
-
-            return this.formatKnownDrugsData(data.target.knownDrugs.rows, 'target');
-
-        } catch (error) {
-            console.error('Error searching by target:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Format known drugs data into standardized structure for UI display
-     * @param {Array} knownDrugsData - Raw data from Open Targets API
-     * @param {string} searchType - Type of search performed ('drug', 'disease', 'target')
-     * @returns {Array} Formatted data ready for UI rendering
-     */
-    formatKnownDrugsData(knownDrugsData, searchType) {
-        if (!Array.isArray(knownDrugsData)) {
-            console.warn('Invalid knownDrugsData format, expected array');
-            return [];
-        }
-
-        return knownDrugsData.map((item, index) => {
-            // Extract and format basic information
-            const drugName = item.drug?.name || item.prefName || 'Unknown Drug';
-            const diseaseName = item.disease?.name || item.label || 'Unknown Disease';
-            const targetSymbol = item.target?.approvedSymbol || item.approvedSymbol || 'Unknown Target';
-            const targetName = item.target?.approvedName || item.approvedName || 'Unknown Target Name';
-            
-            // Format phase information
-            const phase = this.formatPhase(item.phase);
-            const status = this.formatStatus(item.status);
-            
-            // Generate proper links
-            const links = this.generateLinks(item);
-            
-            // Create detailed description
-            const description = this.createDescription(item, searchType);
-
-            return {
-                // Unique identifier for the row
-                id: `${item.drugId}-${item.diseaseId}-${item.targetId}-${index}`,
-                
-                // Basic identifiers  
-                drugId: item.drugId,
-                diseaseId: item.diseaseId,
-                targetId: item.targetId,
-                
-                // Display names
-                drugName,
-                diseaseName,
-                targetSymbol,
-                targetName,
-                
-                // Clinical trial information
-                phase,
-                status,
-                mechanismOfAction: item.mechanismOfAction || 'Not specified',
-                
-                // UI display fields (matching your current table structure)
-                database: 'Open Targets',
-                title: `${drugName} - ${diseaseName}`,
-                type: this.formatType(item),
-                statusSignificance: status,
-                details: description,
-                
-                // Links and references
-                links,
-                viewLink: links.primary,
-                
-                // Raw data for additional processing
-                raw: item
-            };
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
         });
-    }
+
+        return filtered;
+    }, [data, filters, sortConfig]);
 
     /**
-     * Format clinical trial phase for display
-     * @param {number|null} phase - Clinical trial phase
-     * @returns {string} Formatted phase string
+     * Get unique values for filter dropdowns
      */
-    formatPhase(phase) {
-        if (phase === null || phase === undefined) return 'Not specified';
-        if (phase === 0) return 'Preclinical';
-        if (phase === 4) return 'Phase IV (Post-marketing)';
-        return `Phase ${phase}`;
-    }
-
-    /**
-     * Format clinical trial status for display
-     * @param {string|null} status - Clinical trial status
-     * @returns {string} Formatted status string
-     */
-    formatStatus(status) {
-        if (!status) return 'Unknown';
-        
-        // Standardize status display
-        const statusMap = {
-            'recruiting': 'Recruiting',
-            'active': 'Active, not recruiting',
-            'completed': 'Completed',
-            'terminated': 'Terminated',
-            'suspended': 'Suspended',
-            'withdrawn': 'Withdrawn',
-            'approved': 'Approved'
+    const filterOptions = useMemo(() => {
+        return {
+            phases: [...new Set(data.map(item => item.phase))].sort(),
+            statuses: [...new Set(data.map(item => item.status))].sort(),
+            drugTypes: [...new Set(data.map(item => item.raw?.drug?.drugType).filter(Boolean))].sort()
         };
-        
-        return statusMap[status.toLowerCase()] || status;
-    }
+    }, [data]);
 
     /**
-     * Format the type field for display
-     * @param {Object} item - Known drugs data item
-     * @returns {string} Formatted type string
+     * Handle sorting when column header is clicked
      */
-    formatType(item) {
-        const drugType = item.drug?.drugType || 'Unknown';
-        const phase = this.formatPhase(item.phase);
-        return `${drugType} - ${phase}`;
-    }
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
     /**
-     * Create a detailed description for the entry
-     * @param {Object} item - Known drugs data item
-     * @param {string} searchType - Type of search performed
-     * @returns {string} Detailed description
+     * Handle filter changes
      */
-    createDescription(item, searchType) {
-        const components = [];
-        
-        if (item.mechanismOfAction) {
-            components.push(`Mechanism: ${item.mechanismOfAction}`);
-        }
-        
-        if (item.drug?.drugType) {
-            components.push(`Drug type: ${item.drug.drugType}`);
-        }
-        
-        if (item.target?.biotype) {
-            components.push(`Target type: ${item.target.biotype}`);
-        }
-        
-        if (item.ctIds && item.ctIds.length > 0) {
-            components.push(`Clinical trials: ${item.ctIds.length} registered`);
-        }
-        
-        return components.length > 0 ? components.join(' | ') : 'Clinical precedence data available';
-    }
+    const handleFilterChange = (filterType, value) => {
+        setFilters(prev => ({
+            ...prev,
+            [filterType]: value
+        }));
+    };
 
     /**
-     * Generate appropriate links for the entry
-     * @param {Object} item - Known drugs data item
-     * @returns {Object} Object containing various link types
+     * Generate proper link for clinical trial or reference
      */
-    generateLinks(item) {
-        const links = {
-            primary: null,
-            clinicalTrials: [],
-            references: [],
-            openTargets: null
-        };
-
-        // Generate Open Targets Platform links
-        if (item.drugId && item.diseaseId) {
-            links.openTargets = `https://platform.opentargets.org/evidence/${item.targetId}/${item.diseaseId}`;
-            if (!links.primary) links.primary = links.openTargets;
+    const generateLink = (item) => {
+        if (item.links?.clinicalTrials?.length > 0) {
+            return item.links.clinicalTrials[0];
         }
-
-        // Generate ClinicalTrials.gov links
-        if (item.ctIds && Array.isArray(item.ctIds)) {
-            links.clinicalTrials = item.ctIds.map(ctId => ({
-                url: `https://clinicaltrials.gov/ct2/show/${ctId}`,
-                name: `ClinicalTrials.gov: ${ctId}`,
-                id: ctId
-            }));
-            
-            // Use first clinical trial as primary link if no Open Targets link
-            if (!links.primary && links.clinicalTrials.length > 0) {
-                links.primary = links.clinicalTrials[0].url;
-            }
+        if (item.links?.openTargets) {
+            return { url: item.links.openTargets, name: 'View in Open Targets' };
         }
-
-        // Process reference URLs
-        if (item.references && Array.isArray(item.references)) {
-            item.references.forEach(ref => {
-                if (ref.urls && Array.isArray(ref.urls)) {
-                    ref.urls.forEach(url => {
-                        links.references.push({
-                            url: url,
-                            name: `${ref.source} Reference`,
-                            source: ref.source
-                        });
-                    });
-                }
-            });
-        }
-
-        // Process direct URLs
-        if (item.urls && Array.isArray(item.urls)) {
-            item.urls.forEach(urlObj => {
-                links.references.push({
-                    url: urlObj.url,
-                    name: urlObj.name || 'Reference',
-                    source: 'Open Targets'
-                });
-            });
-        }
-
-        // Fallback primary link
-        if (!links.primary) {
-            links.primary = 'https://platform.opentargets.org/';
-        }
-
-        return links;
-    }
+        return { url: item.links?.primary || '#', name: 'View' };
+    };
 
     /**
-     * Search for clinical precedence data with automatic entity type detection
-     * @param {string} query - Search query (drug name, disease name, or target symbol)
-     * @param {string} entityType - Type of entity ('drug', 'disease', 'target', or 'auto')
-     * @param {number} limit - Maximum number of results
-     * @returns {Promise<Array>} Formatted clinical precedence data
+     * Export data functionality
      */
-    async search(query, entityType = 'auto', limit = 20) {
+    const handleExport = (format) => {
         try {
-            console.log(`Searching Open Targets for: "${query}" (type: ${entityType})`);
+            const exportData = openTargetsService.formatForExport 
+                ? openTargetsService.formatForExport(processedData, format)
+                : JSON.stringify(processedData, null, 2);
 
-            // For now, we'll assume the query is a drug ChEMBL ID if it starts with CHEMBL
-            // You might want to implement a more sophisticated entity detection system
-            if (entityType === 'auto') {
-                if (query.startsWith('CHEMBL')) {
-                    entityType = 'drug';
-                } else if (query.startsWith('EFO_') || query.startsWith('MONDO_')) {
-                    entityType = 'disease';
-                } else if (query.startsWith('ENSG')) {
-                    entityType = 'target';
-                } else {
-                    // Default to drug search for now
-                    entityType = 'drug';
-                }
-            }
-
-            switch (entityType) {
-                case 'drug':
-                    return await this.searchByDrug(query, limit);
-                case 'disease':
-                    return await this.searchByDisease(query, limit);
-                case 'target':
-                    return await this.searchByTarget(query, limit);
-                default:
-                    throw new Error(`Unsupported entity type: ${entityType}`);
-            }
-
-        } catch (error) {
-            console.error('Open Targets search error:', error);
-            throw error;
+            const blob = new Blob([exportData], { 
+                type: format === 'json' ? 'application/json' : 'text/csv' 
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `open-targets-data.${format}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export error:', err);
         }
+    };
+
+    /**
+     * Render loading state
+     */
+    if (loading) {
+        return (
+            <div className={`open-targets-container ${className}`}>
+                <div className="loading-state">
+                    <div className="spinner"></div>
+                    <p>Loading clinical precedence data from Open Targets Platform...</p>
+                </div>
+            </div>
+        );
     }
+
+    /**
+     * Render error state
+     */
+    if (error) {
+        return (
+            <div className={`open-targets-container error ${className}`}>
+                <div className="error-state">
+                    <h3>Error Loading Open Targets Data</h3>
+                    <p>{error}</p>
+                    <button onClick={fetchData} className="retry-button">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    /**
+     * Render empty state
+     */
+    if (!data || data.length === 0) {
+        return (
+            <div className={`open-targets-container empty ${className}`}>
+                <div className="empty-state">
+                    <h3>No Clinical Precedence Data Found</h3>
+                    <p>No clinical trials or drug-disease-target associations found for "{searchQuery}"</p>
+                    <button onClick={fetchData} className="retry-button">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`open-targets-container ${className}`}>
+            {/* Header with summary statistics */}
+            <div className="data-summary">
+                <h3>Open Targets Clinical Precedence</h3>
+                <div className="summary-stats">
+                    <span className="stat">
+                        <strong>{processedData.length}</strong> entries found
+                    </span>
+                    <span className="stat">
+                        <strong>{new Set(processedData.map(item => item.drugName)).size}</strong> unique drugs
+                    </span>
+                    <span className="stat">
+                        <strong>{new Set(processedData.map(item => item.diseaseName)).size}</strong> unique diseases
+                    </span>
+                    <span className="stat">
+                        <strong>{new Set(processedData.map(item => item.targetSymbol)).size}</strong> unique targets
+                    </span>
+                </div>
+            </div>
+
+            {/* Filters section */}
+            {showFilters && (
+                <div className="filters-section">
+                    <div className="filter-group">
+                        <label>
+                            Phase:
+                            <select 
+                                value={filters.phase} 
+                                onChange={(e) => handleFilterChange('phase', e.target.value)}
+                            >
+                                <option value="all">All Phases</option>
+                                {filterOptions.phases.map(phase => (
+                                    <option key={phase} value={phase}>{phase}</option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label>
+                            Status:
+                            <select 
+                                value={filters.status} 
+                                onChange={(e) => handleFilterChange('status', e.target.value)}
+                            >
+                                <option value="all">All Statuses</option>
+                                {filterOptions.statuses.map(status => (
+                                    <option key={status} value={status}>{status}</option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label>
+                            Drug Type:
+                            <select 
+                                value={filters.drugType} 
+                                onChange={(e) => handleFilterChange('drugType', e.target.value)}
+                            >
+                                <option value="all">All Types</option>
+                                {filterOptions.drugTypes.map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+
+                    <div className="action-buttons">
+                        <button onClick={() => handleExport('csv')} className="export-btn">
+                            Export CSV
+                        </button>
+                        <button onClick={() => handleExport('json')} className="export-btn">
+                            Export JSON
+                        </button>
+                        <button onClick={fetchData} className="refresh-btn">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Main data table */}
+            <div className="data-table-container">
+                <table className="open-targets-table">
+                    <thead>
+                        <tr>
+                            <th onClick={() => handleSort('database')}>
+                                Database
+                                {sortConfig.key === 'database' && (
+                                    <span className={`sort-indicator ${sortConfig.direction}`}></span>
+                                )}
+                            </th>
+                            <th onClick={() => handleSort('drugName')}>
+                                Drug/Title
+                                {sortConfig.key === 'drugName' && (
+                                    <span className={`sort-indicator ${sortConfig.direction}`}></span>
+                                )}
+                            </th>
+                            <th onClick={() => handleSort('diseaseName')}>
+                                Disease
+                                {sortConfig.key === 'diseaseName' && (
+                                    <span className={`sort-indicator ${sortConfig.direction}`}></span>
+                                )}
+                            </th>
+                            <th onClick={() => handleSort('targetSymbol')}>
+                                Target
+                                {sortConfig.key === 'targetSymbol' && (
+                                    <span className={`sort-indicator ${sortConfig.direction}`}></span>
+                                )}
+                            </th>
+                            <th onClick={() => handleSort('phase')}>
+                                Phase
+                                {sortConfig.key === 'phase' && (
+                                    <span className={`sort-indicator ${sortConfig.direction}`}></span>
+                                )}
+                            </th>
+                            <th onClick={() => handleSort('status')}>
+                                Status
+                                {sortConfig.key === 'status' && (
+                                    <span className={`sort-indicator ${sortConfig.direction}`}></span>
+                                )}
+                            </th>
+                            <th>Details</th>
+                            <th>Link</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {processedData.map((item, index) => {
+                            const link = generateLink(item);
+                            
+                            return (
+                                <tr key={item.id || index} className="data-row">
+                                    <td>
+                                        <span className="database-badge">Open Targets</span>
+                                    </td>
+                                    
+                                    <td className="drug-title">
+                                        <div>
+                                            <strong>{item.drugName}</strong>
+                                            {item.targetSymbol && (
+                                                <span className="target-symbol">
+                                                    targeting {item.targetSymbol}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    
+                                    <td className="disease-name">
+                                        {item.diseaseName}
+                                    </td>
+                                    
+                                    <td className="target-info">
+                                        <div>
+                                            <strong>{item.targetSymbol}</strong>
+                                            <div className="target-full-name">
+                                                {item.targetName}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    
+                                    <td className="phase">
+                                        <span className={`phase-badge phase-${item.raw?.phase || 0}`}>
+                                            {item.phase}
+                                        </span>
+                                    </td>
+                                    
+                                    <td className="status">
+                                        <span className={`status-badge status-${item.status.toLowerCase().replace(/[^a-z]/g, '')}`}>
+                                            {item.status}
+                                        </span>
+                                    </td>
+                                    
+                                    <td className="details">
+                                        <div className="details-content">
+                                            {item.mechanismOfAction && (
+                                                <div><strong>MoA:</strong> {item.mechanismOfAction}</div>
+                                            )}
+                                            {item.raw?.drug?.drugType && (
+                                                <div><strong>Type:</strong> {item.raw.drug.drugType}</div>
+                                            )}
+                                            {item.raw?.ctIds?.length > 0 && (
+                                                <div><strong>Trials:</strong> {item.raw.ctIds.length} registered</div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    
+                                    <td className="link-cell">
+                                        {link && (
+                                            <a 
+                                                href={link.url} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="view-link"
+                                            >
+                                                {link.name || 'View →'}
+                                            </a>
+                                        )}
+                                    </td>
+                                    
+                                    <td className="actions-cell">
+                                        <div className="action-buttons">
+                                            <button 
+                                                className="star-button"
+                                                title="Add to favorites"
+                                                onClick={() => console.log('Star clicked for:', item.id)}
+                                            >
+                                                ☆
+                                            </button>
+                                            
+                                            {/* Additional links dropdown */}
+                                            {(item.links?.clinicalTrials?.length > 1 || item.links?.references?.length > 0) && (
+                                                <div className="dropdown">
+                                                    <button className="dropdown-toggle">⋮</button>
+                                                    <div className="dropdown-menu">
+                                                        {item.links.clinicalTrials?.map((trial, idx) => (
+                                                            <a 
+                                                                key={idx} 
+                                                                href={trial.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                {trial.name}
+                                                            </a>
+                                                        ))}
+                                                        {item.links.references?.map((ref, idx) => (
+                                                            <a 
+                                                                key={idx} 
+                                                                href={ref.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                {ref.name}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * CSS Styles for Open Targets Component
+ * Add these styles to your CSS file or styled-components
+ */
+const OpenTargetsStyles = `
+.open-targets-container {
+    width: 100%;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/**
- * Utility Functions for Open Targets Integration
- */
-const OpenTargetUtils = {
-    /**
-     * Validate entity IDs based on their format
-     * @param {string} id - Entity ID to validate
-     * @returns {Object} Validation result with type and validity
-     */
-    validateEntityId(id) {
-        if (!id || typeof id !== 'string') {
-            return { valid: false, type: 'unknown', error: 'Invalid ID format' };
-        }
+.data-summary {
+    margin-bottom: 20px;
+}
 
-        if (id.startsWith('CHEMBL')) {
-            return { valid: true, type: 'drug', id: id };
-        } else if (id.startsWith('EFO_') || id.startsWith('MONDO_') || id.startsWith('HP_')) {
-            return { valid: true, type: 'disease', id: id };
-        } else if (id.startsWith('ENSG')) {
-            return { valid: true, type: 'target', id: id };
-        } else {
-            return { valid: false, type: 'unknown', error: 'Unrecognized ID format' };
-        }
-    },
+.data-summary h3 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 1.2em;
+}
 
-    /**
-     * Convert drug name to ChEMBL ID (placeholder - you'd need a mapping service)
-     * @param {string} drugName - Drug name
-     * @returns {Promise<string|null>} ChEMBL ID or null
-     */
-    async drugNameToChemblId(drugName) {
-        // This is a placeholder - in a real implementation, you'd use Open Targets search API
-        // or maintain a drug name to ChEMBL ID mapping
-        const commonDrugs = {
-            'imatinib': 'CHEMBL941',
-            'aspirin': 'CHEMBL25',
-            'paracetamol': 'CHEMBL112',
-            'metformin': 'CHEMBL1431'
-        };
-        
-        return commonDrugs[drugName.toLowerCase()] || null;
-    },
+.summary-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
 
-    /**
-     * Format clinical precedence data for export
-     * @param {Array} data - Formatted clinical precedence data
-     * @param {string} format - Export format ('csv', 'json', 'tsv')
-     * @returns {string} Formatted export data
-     */
-    formatForExport(data, format = 'csv') {
-        if (!Array.isArray(data) || data.length === 0) {
-            return '';
-        }
+.stat {
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
 
-        switch (format.toLowerCase()) {
-            case 'csv':
-                return this.formatAsCsv(data);
-            case 'tsv':
-                return this.formatAsTsv(data);
-            case 'json':
-                return JSON.stringify(data, null, 2);
-            default:
-                throw new Error(`Unsupported export format: ${format}`);
-        }
-    },
+.filters-section {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
 
-    formatAsCsv(data) {
-        const headers = ['Drug Name', 'Disease', 'Target Symbol', 'Target Name', 'Phase', 'Status', 'Mechanism of Action', 'Primary Link'];
-        const rows = data.map(item => [
-            item.drugName,
-            item.diseaseName,
-            item.targetSymbol,
-            item.targetName,
-            item.phase,
-            item.status,
-            item.mechanismOfAction,
-            item.links.primary
-        ]);
-        
-        return [headers, ...rows].map(row => 
-            row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')
-        ).join('\n');
-    },
+.filter-group {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
 
-    formatAsTsv(data) {
-        return this.formatAsCsv(data).replace(/,/g, '\t').replace(/"/g, '');
+.filter-group label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.filter-group select {
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 120px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.export-btn, .refresh-btn, .retry-button {
+    padding: 6px 12px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.export-btn:hover, .refresh-btn:hover, .retry-button:hover {
+    background: #0056b3;
+}
+
+.data-table-container {
+    overflow-x: auto;
+}
+
+.open-targets-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.open-targets-table th,
+.open-targets-table td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.open-targets-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+
+.open-targets-table th:hover {
+    background: #e9ecef;
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.sort-indicator.asc::after {
+    content: '↑';
+}
+
+.sort-indicator.desc::after {
+    content: '↓';
+}
+
+.database-badge {
+    background: #28a745;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+}
+
+.target-symbol {
+    display: block;
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 2px;
+}
+
+.target-full-name {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 2px;
+}
+
+.phase-badge {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+.phase-0 { background: #6c757d; color: white; }
+.phase-1 { background: #fd7e14; color: white; }
+.phase-2 { background: #ffc107; color: black; }
+.phase-3 { background: #17a2b8; color: white; }
+.phase-4 { background: #28a745; color: white; }
+
+.status-badge {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+.status-recruiting { background: #28a745; color: white; }
+.status-active { background: #17a2b8; color: white; }
+.status-completed { background: #6c757d; color: white; }
+.status-terminated { background: #dc3545; color: white; }
+.status-approved { background: #28a745; color: white; }
+
+.details-content {
+    font-size: 0.8em;
+    line-height: 1.4;
+}
+
+.details-content div {
+    margin-bottom: 2px;
+}
+
+.view-link {
+    color: #007bff;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.view-link:hover {
+    text-decoration: underline;
+}
+
+.actions-cell {
+    width: 80px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.star-button {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    color: #ccc;
+}
+
+.star-button:hover,
+.star-button.starred {
+    color: #ffc107;
+}
+
+.dropdown {
+    position: relative;
+}
+
+.dropdown-toggle {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    min-width: 150px;
+    z-index: 1000;
+}
+
+.dropdown:hover .dropdown-menu {
+    display: block;
+}
+
+.dropdown-menu a {
+    display: block;
+    padding: 8px 12px;
+    color: #333;
+    text-decoration: none;
+    font-size: 0.9em;
+    border-bottom: 1px solid #eee;
+}
+
+.dropdown-menu a:hover {
+    background: #f8f9fa;
+}
+
+.dropdown-menu a:last-child {
+    border-bottom: none;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-state {
+    color: #dc3545;
+}
+
+.empty-state {
+    color: #6c757d;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .filters-section {
+        flex-direction: column;
+        align-items: stretch;
     }
-};
+    
+    .filter-group {
+        justify-content: space-between;
+    }
+    
+    .summary-stats {
+        justify-content: center;
+    }
+    
+    .open-targets-table {
+        font-size: 0.8em;
+    }
+    
+    .open-targets-table th,
+    .open-targets-table td {
+        padding: 8px 4px;
+    }
+}
+`;
 
-// Export the service and utilities
-export { OpenTargetService, OpenTargetUtils, OPEN_TARGETS_CONFIG };
-
-// Default export for easier importing
-export default OpenTargetService;
+export default OpenTargetsComponent;
+export { OpenTargetsStyles };
 
 /**
- * Example Usage:
+ * Usage Example:
  * 
- * import OpenTargetService from './OpenTarget.js';
+ * import OpenTargetsComponent from './OpenTargetsComponent';
  * 
- * const openTargets = new OpenTargetService();
- * 
- * // Search by drug ChEMBL ID
- * const drugResults = await openTargets.searchByDrug('CHEMBL941'); // Imatinib
- * 
- * // Search by disease EFO ID  
- * const diseaseResults = await openTargets.searchByDisease('EFO_0000685'); // Acute lymphoblastic leukemia
- * 
- * // Search by target Ensembl ID
- * const targetResults = await openTargets.searchByTarget('ENSG00000167733'); // KIT
- * 
- * // Auto-detect entity type
- * const autoResults = await openTargets.search('CHEMBL941');
+ * function App() {
+ *   return (
+ *     <div>
+ *       <OpenTargetsComponent 
+ *         searchQuery="CHEMBL941"  // Imatinib ChEMBL ID
+ *         entityType="drug"
+ *         limit={50}
+ *         onDataUpdate={(data) => console.log('Data updated:', data)}
+ *         showFilters={true}
+ *       />
+ *     </div>
+ *   );
+ * }
  */
