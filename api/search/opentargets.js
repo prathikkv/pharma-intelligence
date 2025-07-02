@@ -246,3 +246,81 @@ export default async function handler(req, res) {
                     const disease = diseaseAssoc.disease;
                     const phase = diseaseAssoc.maxPhaseForIndication || diseaseAssoc.clinicalTrialPhase;
                     const therapeuticAreas = disease.therapeuticAreas?.map(ta => ta.name).join(', ') || 'Unknown';
+
+                    return {
+                        id: `OT-${drugId}-${disease.id}-other-${index}`,
+                        database: 'Open Targets',
+                        title: `${drug.name} for ${disease.name}`,
+                        type: `Drug-Disease Association - Phase ${phase}`,
+                        status_significance: phase >= 3 ? 'Late Stage Clinical' : 'Early Stage Clinical',
+                        details: `${drug.name} is in Phase ${phase} clinical trials for ${disease.name}. Therapeutic areas: ${therapeuticAreas}`,
+                        phase: `Phase ${phase}`,
+                        status: phase >= 3 ? 'Advanced Clinical' : 'Clinical Development',
+                        sponsor: 'Multiple (See OpenTargets)',
+                        year: new Date().getFullYear(),
+                        enrollment: 'N/A',
+                        link: `https://platform.opentargets.org/evidence/${drugId}/${disease.id}`,
+                        
+                        drug_id: drugId,
+                        drug_name: drug.name,
+                        disease_id: disease.id,
+                        disease_name: disease.name,
+                        clinical_phase: phase,
+                        therapeutic_areas: disease.therapeuticAreas?.map(ta => ta.name) || [],
+                        entity_type: 'drug-disease',
+                        
+                        raw_data: diseaseAssoc
+                    };
+                });
+            
+            // Add other phases but keep Phase 2 first
+            results.push(...otherPhases);
+        }
+
+        // Sort: Phase 2 first, then by phase number (higher first)
+        results.sort((a, b) => {
+            if (a.clinical_phase === 2 && b.clinical_phase !== 2) return -1;
+            if (a.clinical_phase !== 2 && b.clinical_phase === 2) return 1;
+            return (b.clinical_phase || 0) - (a.clinical_phase || 0);
+        });
+
+        return res.status(200).json({
+            results: results,
+            total: results.length,
+            query: query,
+            search_timestamp: new Date().toISOString(),
+            api_status: 'success',
+            data_source: 'OpenTargets Platform API v4',
+            debug_info: {
+                drug_processed: drug.name,
+                drug_id: drugId,
+                total_disease_associations: allDiseases.length,
+                phase_2_diseases: phase2Diseases.length,
+                final_results: results.length,
+                search_strategy: 'comprehensive_disease_search'
+            },
+            search_strategies: [
+                `Entity search: Found ${entities.length} drug entities`,
+                `Drug data: Retrieved ${allDiseases.length} disease associations`,
+                `Phase filtering: ${phase2Diseases.length} Phase 2 diseases`,
+                `Final results: ${results.length} total results`
+            ]
+        });
+
+    } catch (error) {
+        console.error('🚨 OpenTargets API Error:', error);
+        
+        return res.status(500).json({
+            error: 'OpenTargets API error',
+            message: error.message,
+            results: [],
+            total: 0,
+            query: req.query?.query || 'unknown',
+            search_timestamp: new Date().toISOString(),
+            debug_info: {
+                error_type: error.name,
+                error_message: error.message
+            }
+        });
+    }
+}
