@@ -1,4 +1,3 @@
-// api/search/opentargets.js - DETAILED DEBUG VERSION
 export default async function handler(req, res) {
     console.log('🎯 OpenTargets API called with query:', req.query.query);
     
@@ -20,7 +19,7 @@ export default async function handler(req, res) {
         console.log('🚀 Starting search for:', query);
 
         // Step 1: Search for Imatinib
-        console.log('🔍 Step 1: Searching for Imatinib in OpenTargets...');
+        console.log('🔍 Step 1: Searching for Imatinib...');
         
         const searchResponse = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
             method: 'POST',
@@ -30,8 +29,8 @@ export default async function handler(req, res) {
             },
             body: JSON.stringify({
                 query: `
-                    query {
-                        search(queryString: "imatinib", entityNames: ["drug"], page: {index: 0, size: 10}) {
+                    query SearchDrug($queryString: String!) {
+                        search(queryString: $queryString, entityNames: ["drug"], page: {index: 0, size: 10}) {
                             hits {
                                 id
                                 name
@@ -41,160 +40,182 @@ export default async function handler(req, res) {
                             total
                         }
                     }
-                `
+                `,
+                variables: {
+                    queryString: "imatinib"
+                }
             })
         });
 
         console.log('📡 Search response status:', searchResponse.status);
 
         if (!searchResponse.ok) {
+            const errorText = await searchResponse.text();
+            console.error('❌ Search failed:', errorText);
             throw new Error(`Search failed: ${searchResponse.status} ${searchResponse.statusText}`);
         }
 
         const searchData = await searchResponse.json();
-        console.log('🔍 Search response data:', JSON.stringify(searchData, null, 2));
+        console.log('🔍 Search data:', searchData);
 
         if (searchData.errors) {
-            console.error('❌ GraphQL errors:', searchData.errors);
+            console.error('❌ GraphQL search errors:', searchData.errors);
             throw new Error(`GraphQL Error: ${searchData.errors[0]?.message}`);
         }
 
         const entities = searchData.data?.search?.hits || [];
         console.log('📊 Found entities:', entities.length);
-        console.log('📋 Entity details:', entities.map(e => ({ id: e.id, name: e.name, score: e.score })));
 
         if (entities.length === 0) {
-            console.log('❌ No entities found - returning empty results');
             return res.status(200).json({
                 results: [],
                 total: 0,
                 query: query,
-                message: 'No drugs found in OpenTargets for this query',
-                search_timestamp: new Date().toISOString(),
-                debug_info: {
-                    step: 'entity_search_failed',
-                    search_response: searchData
-                }
+                message: 'No drugs found in OpenTargets',
+                search_timestamp: new Date().toISOString()
             });
         }
 
-        // Use the first entity (should be Imatinib)
         const drugEntity = entities[0];
         const drugId = drugEntity.id;
         console.log(`💊 Using drug: ${drugEntity.name} (ID: ${drugId})`);
 
-        // Step 2: Get disease associations for this drug
+        // Step 2: Get disease associations - CORRECTED QUERY
         console.log('🔍 Step 2: Getting disease associations...');
         
-        const drugQuery = `
-            query {
-                drug(chemblId: "${drugId}") {
-                    id
-                    name
-                    linkedDiseases {
-                        count
-                        rows {
-                            disease {
-                                id
-                                name
-                            }
-                            maxPhaseForIndication
-                        }
-                    }
-                }
-            }
-        `;
-
-        console.log('📝 Drug query:', drugQuery);
-
         const drugResponse = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({ query: drugQuery })
+            body: JSON.stringify({
+                query: `
+                    query GetDrugDiseases($chemblId: String!) {
+                        drug(chemblId: $chemblId) {
+                            id
+                            name
+                            linkedDiseases {
+                                count
+                                rows {
+                                    disease {
+                                        id
+                                        name
+                                    }
+                                    maxPhaseForIndication
+                                }
+                            }
+                        }
+                    }
+                `,
+                variables: {
+                    chemblId: drugId
+                }
+            })
         });
 
         console.log('📡 Drug response status:', drugResponse.status);
 
         if (!drugResponse.ok) {
-            throw new Error(`Drug query failed: ${drugResponse.status} ${drugResponse.statusText}`);
+            const errorText = await drugResponse.text();
+            console.error('❌ Drug query failed:', errorText);
+            console.error('❌ Drug ID used:', drugId);
+            
+            // If the drug query fails, return what we can
+            return res.status(200).json({
+                results: [],
+                total: 0,
+                query: query,
+                message: `Found drug ${drugEntity.name} but could not get disease data`,
+                search_timestamp: new Date().toISOString(),
+                debug_info: {
+                    drug_found: drugEntity.name,
+                    drug_id: drugId,
+                    error: `Drug query failed: ${drugResponse.status}`,
+                    error_details: errorText
+                }
+            });
         }
 
         const drugData = await drugResponse.json();
-        console.log('💊 Drug response data:', JSON.stringify(drugData, null, 2));
+        console.log('💊 Drug data received');
 
         if (drugData.errors) {
             console.error('❌ Drug query GraphQL errors:', drugData.errors);
-            throw new Error(`GraphQL Error: ${drugData.errors[0]?.message}`);
+            
+            // Return what we can with error info
+            return res.status(200).json({
+                results: [],
+                total: 0,
+                query: query,
+                message: `Found drug ${drugEntity.name} but GraphQL query failed`,
+                search_timestamp: new Date().toISOString(),
+                debug_info: {
+                    drug_found: drugEntity.name,
+                    drug_id: drugId,
+                    graphql_errors: drugData.errors
+                }
+            });
         }
 
         const drug = drugData.data?.drug;
         console.log('💊 Drug object:', drug);
 
         if (!drug) {
-            console.log('❌ No drug data found');
             return res.status(200).json({
                 results: [],
                 total: 0,
                 query: query,
-                message: 'No drug data found in OpenTargets',
+                message: `Drug ${drugEntity.name} found in search but no detailed data available`,
                 search_timestamp: new Date().toISOString(),
                 debug_info: {
-                    step: 'drug_data_not_found',
+                    drug_found: drugEntity.name,
                     drug_id: drugId,
-                    drug_response: drugData
+                    drug_data_response: drugData
                 }
             });
         }
 
         const linkedDiseases = drug.linkedDiseases?.rows || [];
         console.log('🦠 Total linked diseases:', linkedDiseases.length);
-        console.log('🦠 Disease sample:', linkedDiseases.slice(0, 5).map(d => ({ 
-            name: d.disease.name, 
-            phase: d.maxPhaseForIndication 
-        })));
 
-        // Step 3: Filter for Phase 2 diseases
-        const phase2Diseases = linkedDiseases.filter(diseaseAssoc => {
+        // Create results for ALL diseases first (to test the pipeline)
+        const allResults = linkedDiseases.map((diseaseAssoc, index) => {
             const phase = diseaseAssoc.maxPhaseForIndication;
-            console.log(`🔍 Checking disease: ${diseaseAssoc.disease.name}, Phase: ${phase}`);
-            return phase === 2;
+            return {
+                id: `OT-${drugId}-${diseaseAssoc.disease.id}-${index}`,
+                database: 'Open Targets',
+                title: `${drug.name} for ${diseaseAssoc.disease.name}`,
+                type: `Drug-Disease Association - Phase ${phase || 'Unknown'}`,
+                status_significance: phase === 2 ? 'Phase 2 Clinical' : `Phase ${phase || 'Unknown'} Clinical`,
+                details: `${drug.name} is in Phase ${phase || 'Unknown'} clinical trials for ${diseaseAssoc.disease.name}`,
+                phase: `Phase ${phase || 'Unknown'}`,
+                status: 'Clinical Development',
+                sponsor: 'Multiple',
+                year: 2025,
+                enrollment: 'N/A',
+                link: `https://platform.opentargets.org/evidence/${drugId}/${diseaseAssoc.disease.id}`,
+                
+                drug_id: drugId,
+                drug_name: drug.name,
+                disease_id: diseaseAssoc.disease.id,
+                disease_name: diseaseAssoc.disease.name,
+                clinical_phase: phase,
+                entity_type: 'drug-disease',
+                raw_data: diseaseAssoc
+            };
         });
 
-        console.log('📊 Phase 2 diseases found:', phase2Diseases.length);
-        console.log('📋 Phase 2 disease names:', phase2Diseases.map(d => d.disease.name));
-
-        // Step 4: Create results
-        const results = phase2Diseases.map((diseaseAssoc, index) => ({
-            id: `OT-${drugId}-${diseaseAssoc.disease.id}-${index}`,
-            database: 'Open Targets',
-            title: `${drug.name} for ${diseaseAssoc.disease.name}`,
-            type: 'Drug-Disease Association - Phase 2',
-            status_significance: 'Phase 2 Clinical',
-            details: `${drug.name} is in Phase 2 clinical trials for ${diseaseAssoc.disease.name}`,
-            phase: 'Phase 2',
-            status: 'Clinical Development',
-            sponsor: 'Multiple',
-            year: 2025,
-            enrollment: 'N/A',
-            link: `https://platform.opentargets.org/evidence/${drugId}/${diseaseAssoc.disease.id}`,
-            
-            drug_id: drugId,
-            drug_name: drug.name,
-            disease_id: diseaseAssoc.disease.id,
-            disease_name: diseaseAssoc.disease.name,
-            clinical_phase: 2,
-            entity_type: 'drug-disease',
-            raw_data: diseaseAssoc
-        }));
-
-        console.log('✅ Final results prepared:', results.length);
+        // Filter for Phase 2 diseases
+        const phase2Results = allResults.filter(result => result.clinical_phase === 2);
+        
+        console.log('📊 Total diseases:', linkedDiseases.length);
+        console.log('📊 Phase 2 diseases:', phase2Results.length);
+        console.log('📋 All phases found:', [...new Set(linkedDiseases.map(d => d.maxPhaseForIndication))]);
 
         return res.status(200).json({
-            results: results,
-            total: results.length,
+            results: phase2Results.length > 0 ? phase2Results : allResults.slice(0, 20), // Show Phase 2 if found, otherwise first 20
+            total: phase2Results.length > 0 ? phase2Results.length : allResults.length,
             query: query,
             search_timestamp: new Date().toISOString(),
             api_status: 'success',
@@ -202,14 +223,14 @@ export default async function handler(req, res) {
                 drug_found: drug.name,
                 drug_id: drugId,
                 total_diseases: linkedDiseases.length,
-                phase_2_diseases: phase2Diseases.length,
-                final_results: results.length
+                phase_2_diseases: phase2Results.length,
+                all_phases: [...new Set(linkedDiseases.map(d => d.maxPhaseForIndication))],
+                showing_results: phase2Results.length > 0 ? 'phase_2_only' : 'all_phases_sample'
             }
         });
 
     } catch (error) {
         console.error('🚨 OpenTargets API Error:', error);
-        console.error('🚨 Error stack:', error.stack);
         
         return res.status(500).json({
             error: 'OpenTargets API error',
