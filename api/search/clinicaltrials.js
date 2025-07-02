@@ -1,87 +1,378 @@
-// api/search/clinicaltrials.js - Enhanced ClinicalTrials.gov implementation with API v2.0
-// Replace your current api/search/clinicaltrials.js file with this enhanced version
+// api/search/clinicaltrials.js - ENHANCED VERSION for comprehensive results
+// Replace your current clinicaltrials.js with this enhanced version
 
 /**
- * Enhanced ClinicalTrials.gov API handler using the new API v2.0
- * Returns actionable clinical trial data with proper study details and links
+ * Enhanced ClinicalTrials.gov API handler - Returns 100s-1000s of comprehensive results
+ * Optimized queries, better parsing, multiple search strategies
  */
 
 const CLINICALTRIALS_CONFIG = {
     baseUrl: 'https://clinicaltrials.gov/api/v2',
     webUrl: 'https://clinicaltrials.gov',
-    maxRetries: 3,
-    timeout: 30000,
-    rateLimit: 20, // requests per second
-    maxPageSize: 1000
+    maxRetries: 2,
+    timeout: 20000,
+    rateLimit: 10,
+    maxPageSize: 1000 // Maximum allowed by API
 };
 
 /**
- * Execute ClinicalTrials.gov API request with error handling and retries
+ * SMART query enhancement for better results
  */
-async function executeClinicalTrialsRequest(endpoint, params = {}, retries = 3) {
-    const url = new URL(`${CLINICALTRIALS_CONFIG.baseUrl}/${endpoint}`);
+function enhanceSearchQuery(originalQuery) {
+    const queryLower = originalQuery.toLowerCase();
     
-    // Add default parameters
-    if (!params.format) params.format = 'json';
-    if (!params.pageSize) params.pageSize = Math.min(params.limit || 50, 1000);
+    // Extract specific entities and enhance the search
+    const enhancements = [];
     
-    Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-            url.searchParams.append(key, value);
+    // Drug name extraction and enhancement
+    const drugPatterns = [
+        /\b([a-z]+(?:inib|mab|nab|tuzumab|mycin|cillin))\b/gi,
+        /(?:drug|medication|compound|agent)\s+([a-zA-Z0-9\-]+)/gi
+    ];
+    
+    drugPatterns.forEach(pattern => {
+        const matches = [...originalQuery.matchAll(pattern)];
+        matches.forEach(match => {
+            if (match[1] && match[1].length > 3) {
+                enhancements.push(match[1]);
+            }
+        });
+    });
+    
+    // Disease/condition enhancement
+    const diseaseKeywords = [
+        'cancer', 'carcinoma', 'adenocarcinoma', 'sarcoma', 'lymphoma', 'leukemia',
+        'alzheimer', 'diabetes', 'hypertension', 'depression', 'arthritis',
+        'covid', 'influenza', 'hepatitis', 'HIV', 'tuberculosis'
+    ];
+    
+    diseaseKeywords.forEach(keyword => {
+        if (queryLower.includes(keyword)) {
+            enhancements.push(keyword);
         }
     });
+    
+    // Create multiple search variations
+    const searchVariations = [
+        originalQuery,
+        ...enhancements,
+        // Add OR combinations for broader results
+        enhancements.length > 1 ? enhancements.join(' OR ') : null
+    ].filter(Boolean);
+    
+    return {
+        primary: originalQuery,
+        variations: [...new Set(searchVariations)], // Remove duplicates
+        enhancements
+    };
+}
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-            const response = await fetch(url.toString(), {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'User-Agent': 'PharmaIntelligence/1.0'
-                },
-                signal: AbortSignal.timeout(CLINICALTRIALS_CONFIG.timeout)
-            });
-
-            if (!response.ok) {
-                throw new Error(`ClinicalTrials.gov API error: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            return data;
-
-        } catch (error) {
-            console.error(`ClinicalTrials.gov API attempt ${attempt} failed:`, error);
-            
-            if (attempt === retries) {
-                throw new Error(`ClinicalTrials.gov API failed after ${retries} attempts: ${error.message}`);
-            }
-            
-            // Wait before retrying with exponential backoff
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+/**
+ * Execute multiple search strategies for comprehensive results
+ */
+async function comprehensiveSearch(query, limit = 500) {
+    const enhancedQuery = enhanceSearchQuery(query);
+    const allResults = [];
+    const searchStrategies = [];
+    
+    console.log('ClinicalTrials.gov: Enhanced query variations:', enhancedQuery.variations);
+    
+    // Strategy 1: Primary query search
+    try {
+        console.log('ClinicalTrials.gov: Executing primary search...');
+        const primaryResults = await searchClinicalTrials(enhancedQuery.primary, {
+            pageSize: Math.min(limit, 500),
+            fields: 'all' // Request all available fields
+        });
+        
+        if (primaryResults.length > 0) {
+            allResults.push(...primaryResults);
+            searchStrategies.push(`Primary query: ${primaryResults.length} results`);
         }
+    } catch (error) {
+        console.warn('Primary search failed:', error.message);
+        searchStrategies.push(`Primary query: Failed (${error.message})`);
+    }
+    
+    // Strategy 2: Enhanced term searches
+    for (const variation of enhancedQuery.variations.slice(1)) {
+        try {
+            console.log(`ClinicalTrials.gov: Searching variation: "${variation}"`);
+            const variationResults = await searchClinicalTrials(variation, {
+                pageSize: Math.min(200, limit - allResults.length),
+                fields: 'essential'
+            });
+            
+            if (variationResults.length > 0) {
+                allResults.push(...variationResults);
+                searchStrategies.push(`Variation "${variation}": ${variationResults.length} results`);
+            }
+            
+            // Stop if we have enough results
+            if (allResults.length >= limit) break;
+            
+        } catch (error) {
+            console.warn(`Variation search failed for "${variation}":`, error.message);
+            searchStrategies.push(`Variation "${variation}": Failed`);
+        }
+    }
+    
+    // Strategy 3: Broad category search if still not enough results
+    if (allResults.length < 50 && enhancedQuery.enhancements.length > 0) {
+        try {
+            console.log('ClinicalTrials.gov: Executing broad category search...');
+            const broadQuery = enhancedQuery.enhancements[0]; // Use first enhancement
+            const broadResults = await searchClinicalTrials(broadQuery, {
+                pageSize: Math.min(300, limit - allResults.length),
+                fields: 'essential',
+                broad: true
+            });
+            
+            if (broadResults.length > 0) {
+                allResults.push(...broadResults);
+                searchStrategies.push(`Broad search: ${broadResults.length} results`);
+            }
+        } catch (error) {
+            console.warn('Broad search failed:', error.message);
+            searchStrategies.push(`Broad search: Failed`);
+        }
+    }
+    
+    // Remove duplicates based on NCT ID
+    const uniqueResults = allResults.filter((study, index, self) => 
+        index === self.findIndex(s => s.nct_id === study.nct_id)
+    );
+    
+    console.log(`ClinicalTrials.gov: Comprehensive search completed - ${uniqueResults.length} unique results`);
+    console.log('Search strategies used:', searchStrategies);
+    
+    return {
+        results: uniqueResults,
+        strategies: searchStrategies,
+        totalFound: uniqueResults.length
+    };
+}
+
+/**
+ * Enhanced ClinicalTrials.gov API search
+ */
+async function searchClinicalTrials(searchQuery, options = {}) {
+    const {
+        pageSize = 500,
+        fields = 'all',
+        broad = false
+    } = options;
+    
+    try {
+        // Construct API request with enhanced parameters
+        const params = {
+            'query.term': searchQuery,
+            'format': 'json',
+            'countTotal': 'true',
+            'pageSize': Math.min(pageSize, CLINICALTRIALS_CONFIG.maxPageSize)
+        };
+        
+        // Add fields specification for more comprehensive data
+        if (fields === 'all') {
+            params['fields'] = [
+                'NCTId', 'BriefTitle', 'OfficialTitle', 'OverallStatus', 'Phase',
+                'StudyType', 'PrimaryPurpose', 'Condition', 'Intervention',
+                'LeadSponsorName', 'LeadSponsorClass', 'Collaborator',
+                'StartDate', 'CompletionDate', 'PrimaryCompletionDate',
+                'EnrollmentCount', 'EnrollmentType', 'EligibilityCriteria',
+                'BriefSummary', 'DetailedDescription', 'PrimaryOutcome',
+                'SecondaryOutcome', 'LocationCountry', 'LocationFacility',
+                'ResponsiblePartyType', 'Gender', 'MinimumAge', 'MaximumAge',
+                'StdAge', 'StudyFirstSubmitDate', 'LastUpdateSubmitDate',
+                'CompletionDateType', 'StartDateType'
+            ].join(',');
+        }
+        
+        const url = `${CLINICALTRIALS_CONFIG.baseUrl}/studies?${new URLSearchParams(params)}`;
+        
+        console.log(`ClinicalTrials.gov API request: ${url.substring(0, 100)}...`);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'PharmaceuticalIntelligence/3.0'
+            },
+            signal: AbortSignal.timeout(CLINICALTRIALS_CONFIG.timeout)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`ClinicalTrials.gov API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.studies || data.studies.length === 0) {
+            console.log('ClinicalTrials.gov: No studies found for query:', searchQuery);
+            return [];
+        }
+        
+        // Process and enhance the results
+        const processedStudies = data.studies.map(study => enhanceStudyData(study));
+        
+        console.log(`ClinicalTrials.gov: ${processedStudies.length} studies processed for query: "${searchQuery}"`);
+        
+        return processedStudies;
+        
+    } catch (error) {
+        console.error(`ClinicalTrials.gov search error for "${searchQuery}":`, error);
+        throw error;
     }
 }
 
 /**
- * Format study phase for display
+ * Enhanced study data processing
  */
-function formatPhase(phases) {
-    if (!phases || phases.length === 0) return 'Not specified';
+function enhanceStudyData(study) {
+    const protocolSection = study.protocolSection || {};
+    const identificationModule = protocolSection.identificationModule || {};
+    const statusModule = protocolSection.statusModule || {};
+    const designModule = protocolSection.designModule || {};
+    const conditionsModule = protocolSection.conditionsModule || {};
+    const armsInterventionsModule = protocolSection.armsInterventionsModule || {};
+    const sponsorCollaboratorsModule = protocolSection.sponsorCollaboratorsModule || {};
+    const descriptionModule = protocolSection.descriptionModule || {};
+    const eligibilityModule = protocolSection.eligibilityModule || {};
+    const contactsLocationsModule = protocolSection.contactsLocationsModule || {};
     
-    // Handle array of phases
-    if (Array.isArray(phases)) {
-        const sortedPhases = phases.sort();
-        if (sortedPhases.length === 1) {
-            return formatSinglePhase(sortedPhases[0]);
-        } else {
-            return sortedPhases.map(formatSinglePhase).join(', ');
-        }
-    }
+    // Extract comprehensive data
+    const nctId = identificationModule.nctId || 'Unknown';
+    const briefTitle = identificationModule.briefTitle || 'No title available';
+    const officialTitle = identificationModule.officialTitle || '';
     
-    return formatSinglePhase(phases);
+    // Status and phase information
+    const overallStatus = statusModule.overallStatus || 'Unknown';
+    const phases = designModule.phases || [];
+    const studyType = designModule.studyType || 'Unknown';
+    const primaryPurpose = designModule.designInfo?.primaryPurpose || 'Unknown';
+    
+    // Conditions and interventions
+    const conditions = conditionsModule.conditions || [];
+    const interventions = armsInterventionsModule.interventions || [];
+    
+    // Sponsor information
+    const leadSponsor = sponsorCollaboratorsModule.leadSponsor?.name || 'Unknown';
+    const sponsorClass = sponsorCollaboratorsModule.leadSponsor?.class || 'Unknown';
+    const collaborators = sponsorCollaboratorsModule.collaborators || [];
+    
+    // Dates and enrollment
+    const startDate = statusModule.startDateStruct?.date;
+    const completionDate = statusModule.primaryCompletionDateStruct?.date || 
+                          statusModule.completionDateStruct?.date;
+    const enrollmentInfo = designModule.enrollmentInfo || {};
+    
+    // Descriptions
+    const briefSummary = descriptionModule.briefSummary || 'No summary available';
+    const detailedDescription = descriptionModule.detailedDescription || '';
+    
+    // Eligibility
+    const eligibilityCriteria = eligibilityModule.eligibilityCriteria || 'Not specified';
+    const gender = eligibilityModule.gender || 'All';
+    const minimumAge = eligibilityModule.minimumAge || 'Not specified';
+    const maximumAge = eligibilityModule.maximumAge || 'Not specified';
+    
+    // Locations
+    const locations = contactsLocationsModule.locations || [];
+    const countries = [...new Set(locations.map(loc => loc.country).filter(Boolean))];
+    
+    // Create enhanced study object
+    const enhancedStudy = {
+        // Standard identifiers
+        id: nctId,
+        nct_id: nctId,
+        
+        // Titles and descriptions
+        title: briefTitle,
+        brief_title: briefTitle,
+        official_title: officialTitle,
+        brief_summary: briefSummary,
+        detailed_description: detailedDescription,
+        
+        // Status and classification
+        status: overallStatus,
+        overall_status: overallStatus,
+        study_type: studyType,
+        primary_purpose: primaryPurpose,
+        
+        // Phase information
+        phase: phases.length > 0 ? formatPhases(phases) : 'N/A',
+        phases: phases,
+        
+        // Conditions and interventions
+        conditions: conditions,
+        condition_summary: conditions.slice(0, 3).join(', ') || 'Not specified',
+        interventions: interventions.map(int => ({
+            name: int.name,
+            type: int.type,
+            description: int.description
+        })),
+        intervention_summary: interventions.slice(0, 3).map(int => int.name).join(', ') || 'Not specified',
+        
+        // Sponsor information
+        sponsor: leadSponsor,
+        lead_sponsor: leadSponsor,
+        sponsor_class: sponsorClass,
+        collaborators: collaborators.map(collab => collab.name),
+        collaborator_summary: collaborators.slice(0, 2).map(collab => collab.name).join(', '),
+        
+        // Dates
+        start_date: startDate,
+        completion_date: completionDate,
+        year: startDate ? new Date(startDate).getFullYear() : new Date().getFullYear(),
+        
+        // Enrollment
+        enrollment: enrollmentInfo.count || 'Not specified',
+        enrollment_type: enrollmentInfo.type || 'Not specified',
+        
+        // Eligibility
+        eligibility_criteria: eligibilityCriteria,
+        gender: gender,
+        minimum_age: minimumAge,
+        maximum_age: maximumAge,
+        age_range: `${minimumAge} - ${maximumAge}`,
+        
+        // Geographic information
+        locations: locations.slice(0, 5), // Limit for performance
+        countries: countries,
+        location_summary: countries.slice(0, 3).join(', ') || 'Not specified',
+        
+        // URLs and links
+        url: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}`,
+        link: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}`,
+        study_url: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}`,
+        
+        // Metadata for search and filtering
+        last_update_date: statusModule.lastUpdateSubmitDate,
+        study_first_submitted_date: statusModule.studyFirstSubmitDate,
+        
+        // Enhanced search relevance fields
+        search_keywords: [
+            ...conditions,
+            ...interventions.map(int => int.name),
+            leadSponsor,
+            studyType,
+            primaryPurpose,
+            ...phases
+        ].filter(Boolean),
+        
+        // Raw data for advanced processing
+        raw_data: study
+    };
+    
+    return enhancedStudy;
 }
 
-function formatSinglePhase(phase) {
+/**
+ * Format phases for display
+ */
+function formatPhases(phases) {
+    if (!phases || phases.length === 0) return 'Not specified';
+    
     const phaseMap = {
         'EARLY_PHASE1': 'Early Phase I',
         'PHASE1': 'Phase I',
@@ -93,289 +384,15 @@ function formatSinglePhase(phase) {
         'NOT_APPLICABLE': 'Not Applicable'
     };
     
-    return phaseMap[phase] || phase || 'Not specified';
-}
-
-/**
- * Format recruitment status
- */
-function formatStatus(status) {
-    const statusMap = {
-        'NOT_YET_RECRUITING': 'Not yet recruiting',
-        'RECRUITING': 'Recruiting',
-        'ENROLLING_BY_INVITATION': 'Enrolling by invitation',
-        'ACTIVE_NOT_RECRUITING': 'Active, not recruiting',
-        'SUSPENDED': 'Suspended',
-        'TERMINATED': 'Terminated',
-        'COMPLETED': 'Completed',
-        'WITHDRAWN': 'Withdrawn',
-        'UNKNOWN': 'Unknown status'
-    };
-    
-    return statusMap[status] || status || 'Unknown';
-}
-
-/**
- * Format study type
- */
-function formatStudyType(studyType) {
-    const typeMap = {
-        'INTERVENTIONAL': 'Interventional',
-        'OBSERVATIONAL': 'Observational',
-        'PATIENT_REGISTRY': 'Patient Registry',
-        'EXPANDED_ACCESS': 'Expanded Access'
-    };
-    
-    return typeMap[studyType] || studyType || 'Unknown';
-}
-
-/**
- * Extract intervention names from study
- */
-function extractInterventions(study) {
-    const interventions = study.protocolSection?.armsInterventionsModule?.interventions || [];
-    return interventions
-        .map(intervention => intervention.name || intervention.otherNames?.[0])
-        .filter(Boolean)
-        .slice(0, 3); // Limit to first 3 interventions
-}
-
-/**
- * Extract condition names from study
- */
-function extractConditions(study) {
-    const conditions = study.protocolSection?.conditionsModule?.conditions || [];
-    return conditions.slice(0, 3); // Limit to first 3 conditions
-}
-
-/**
- * Extract sponsor information
- */
-function extractSponsor(study) {
-    const sponsorsModule = study.protocolSection?.sponsorCollaboratorsModule;
-    if (!sponsorsModule) return 'Unknown';
-    
-    const leadSponsor = sponsorsModule.leadSponsor?.name;
-    const collaborators = sponsorsModule.collaborators || [];
-    
-    if (collaborators.length > 0) {
-        return `${leadSponsor} (+${collaborators.length} collaborators)`;
-    }
-    
-    return leadSponsor || 'Unknown';
-}
-
-/**
- * Extract enrollment information
- */
-function extractEnrollment(study) {
-    const designModule = study.protocolSection?.designModule;
-    const enrollment = designModule?.enrollmentInfo;
-    
-    if (!enrollment) return 'Not specified';
-    
-    const count = enrollment.count || 'Unknown';
-    const type = enrollment.type === 'ESTIMATED' ? ' (estimated)' : 
-                 enrollment.type === 'ACTUAL' ? ' (actual)' : '';
-    
-    return `${count}${type}`;
-}
-
-/**
- * Extract study dates
- */
-function extractDates(study) {
-    const statusModule = study.protocolSection?.statusModule;
-    
-    const startDate = statusModule?.startDateStruct?.date;
-    const completionDate = statusModule?.primaryCompletionDateStruct?.date || 
-                          statusModule?.completionDateStruct?.date;
-    
-    return {
-        startDate: startDate ? new Date(startDate) : null,
-        completionDate: completionDate ? new Date(completionDate) : null,
-        startYear: startDate ? new Date(startDate).getFullYear() : new Date().getFullYear()
-    };
-}
-
-/**
- * Generate study links
- */
-function generateStudyLinks(study) {
-    const nctId = study.protocolSection?.identificationModule?.nctId;
-    
-    if (!nctId) {
-        return {
-            primary: `${CLINICALTRIALS_CONFIG.webUrl}`,
-            study: null,
-            results: null
-        };
-    }
-    
-    return {
-        primary: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}`,
-        study: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}`,
-        results: study.resultsSection ? `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}?tab=results` : null,
-        documents: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}?tab=documents`,
-        history: `${CLINICALTRIALS_CONFIG.webUrl}/study/${nctId}?tab=history`
-    };
-}
-
-/**
- * Create detailed description from study data
- */
-function createStudyDescription(study) {
-    const components = [];
-    
-    const interventions = extractInterventions(study);
-    if (interventions.length > 0) {
-        components.push(`Interventions: ${interventions.join(', ')}`);
-    }
-    
-    const conditions = extractConditions(study);
-    if (conditions.length > 0) {
-        components.push(`Conditions: ${conditions.join(', ')}`);
-    }
-    
-    const enrollment = extractEnrollment(study);
-    if (enrollment !== 'Not specified') {
-        components.push(`Enrollment: ${enrollment}`);
-    }
-    
-    const studyType = formatStudyType(study.protocolSection?.designModule?.studyType);
-    if (studyType !== 'Unknown') {
-        components.push(`Type: ${studyType}`);
-    }
-    
-    return components.length > 0 ? components.join(' | ') : 'Clinical trial';
-}
-
-/**
- * Format study data for consistent output
- */
-function formatStudyData(studies) {
-    return studies.map((study, index) => {
-        const protocolSection = study.protocolSection;
-        const identificationModule = protocolSection?.identificationModule;
-        const statusModule = protocolSection?.statusModule;
-        const designModule = protocolSection?.designModule;
-        
-        const nctId = identificationModule?.nctId || `UNKNOWN-${index}`;
-        const title = identificationModule?.briefTitle || 'Unknown Study Title';
-        const phases = designModule?.phases || [];
-        const status = statusModule?.overallStatus;
-        const studyType = designModule?.studyType;
-        
-        const links = generateStudyLinks(study);
-        const description = createStudyDescription(study);
-        const dates = extractDates(study);
-        const interventions = extractInterventions(study);
-        const conditions = extractConditions(study);
-        const sponsor = extractSponsor(study);
-        const enrollment = extractEnrollment(study);
-        
-        const formattedPhase = formatPhase(phases);
-        const formattedStatus = formatStatus(status);
-        const formattedStudyType = formatStudyType(studyType);
-        
-        // Create type string combining study type and phase
-        const typeString = phases.length > 0 ? 
-            `${formattedStudyType} - ${formattedPhase}` : 
-            formattedStudyType;
-        
-        return {
-            id: `CT-${nctId}`,
-            database: 'ClinicalTrials.gov',
-            title: title,
-            type: typeString,
-            status_significance: formattedStatus,
-            details: description,
-            phase: formattedPhase,
-            status: formattedStatus,
-            sponsor: sponsor,
-            year: dates.startYear,
-            enrollment: enrollment,
-            link: links.primary,
-            
-            // ClinicalTrials.gov specific fields
-            nct_id: nctId,
-            study_type: formattedStudyType,
-            interventions: interventions,
-            conditions: conditions,
-            start_date: dates.startDate?.toISOString(),
-            completion_date: dates.completionDate?.toISOString(),
-            
-            // Additional useful fields
-            official_title: identificationModule?.officialTitle,
-            brief_summary: protocolSection?.descriptionModule?.briefSummary,
-            study_population: protocolSection?.eligibilityModule?.eligibilityCriteria,
-            
-            // Links to different study sections
-            results_link: links.results,
-            documents_link: links.documents,
-            history_link: links.history,
-            
-            // Raw data for further processing
-            raw_data: study
-        };
-    });
-}
-
-/**
- * Search studies by various criteria
- */
-async function searchStudies(query, options = {}) {
-    const {
-        limit = 50,
-        status = null,
-        phase = null,
-        studyType = null,
-        sponsor = null
-    } = options;
-    
-    try {
-        const params = {
-            'query.titles': query,
-            pageSize: Math.min(limit, CLINICALTRIALS_CONFIG.maxPageSize),
-            format: 'json'
-        };
-        
-        // Add filters if specified
-        if (status) params['filter.overallStatus'] = status;
-        if (phase) params['filter.phase'] = phase;
-        if (studyType) params['filter.studyType'] = studyType;
-        if (sponsor) params['query.lead'] = sponsor;
-        
-        const data = await executeClinicalTrialsRequest('studies', params);
-        
-        return data.studies || [];
-        
-    } catch (error) {
-        console.error('ClinicalTrials.gov search error:', error);
-        
-        // Try a broader search if the specific search fails
-        try {
-            const broadParams = {
-                'query.cond': query,
-                pageSize: Math.min(limit, 100),
-                format: 'json'
-            };
-            
-            const broadData = await executeClinicalTrialsRequest('studies', broadParams);
-            return broadData.studies || [];
-            
-        } catch (broadError) {
-            console.error('Broad ClinicalTrials.gov search also failed:', broadError);
-            return [];
-        }
-    }
+    const formattedPhases = phases.map(phase => phaseMap[phase] || phase);
+    return formattedPhases.join(', ');
 }
 
 /**
  * Main API handler
  */
 export default async function handler(req, res) {
-    // Set CORS headers
+    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -391,88 +408,136 @@ export default async function handler(req, res) {
 
     const { 
         query, 
-        limit = 50, 
-        status = null, 
-        phase = null, 
-        study_type = null, 
-        sponsor = null 
+        limit = 500,
+        status = null,
+        phase = null,
+        sponsor = null,
+        study_type = null
     } = req.query;
 
     if (!query) {
-        return res.status(400).json({ error: 'Query parameter is required' });
+        return res.status(400).json({ 
+            error: 'Query parameter is required',
+            example: 'Try: "imatinib cancer" or "Alzheimer disease phase 3"'
+        });
     }
 
+    const startTime = performance.now();
+
     try {
-        console.log(`ClinicalTrials.gov search for: "${query}"`);
+        console.log(`ClinicalTrials.gov enhanced search for: "${query}"`);
         
-        const searchLimit = Math.min(parseInt(limit) || 50, 1000);
+        const searchLimit = Math.min(parseInt(limit) || 500, 1000);
         
-        // Search for studies
-        const studies = await searchStudies(query, {
-            limit: searchLimit,
-            status,
-            phase,
-            studyType: study_type,
-            sponsor
-        });
+        // Execute comprehensive search
+        const searchResults = await comprehensiveSearch(query, searchLimit);
         
-        if (studies.length === 0) {
-            return res.status(200).json({
-                results: [],
-                total: 0,
-                query: query,
-                search_timestamp: new Date().toISOString(),
-                message: 'No clinical trials found for the given query'
-            });
+        let results = searchResults.results;
+        
+        // Apply additional filters if specified
+        if (status) {
+            results = results.filter(study => 
+                study.overall_status?.toLowerCase().includes(status.toLowerCase())
+            );
         }
         
-        // Format study data
-        const results = formatStudyData(studies);
+        if (phase) {
+            results = results.filter(study => 
+                study.phases?.some(p => p.toLowerCase().includes(phase.toLowerCase())) ||
+                study.phase?.toLowerCase().includes(phase.toLowerCase())
+            );
+        }
         
-        // Sort by relevance (recruiting first, then by start date)
+        if (sponsor) {
+            results = results.filter(study => 
+                study.lead_sponsor?.toLowerCase().includes(sponsor.toLowerCase())
+            );
+        }
+        
+        if (study_type) {
+            results = results.filter(study => 
+                study.study_type?.toLowerCase().includes(study_type.toLowerCase())
+            );
+        }
+        
+        // Enhanced sorting for relevance
         results.sort((a, b) => {
-            // Priority: Recruiting > Active > Completed > Others
-            const statusPriority = {
-                'Recruiting': 4,
-                'Active, not recruiting': 3,
-                'Completed': 2,
-                'Not yet recruiting': 2
-            };
-            
-            const aPriority = statusPriority[a.status] || 1;
-            const bPriority = statusPriority[b.status] || 1;
-            
-            if (aPriority !== bPriority) {
-                return bPriority - aPriority;
+            // Priority 1: Active/Recruiting studies
+            const statusPriorityA = getStatusPriority(a.overall_status);
+            const statusPriorityB = getStatusPriority(b.overall_status);
+            if (statusPriorityA !== statusPriorityB) {
+                return statusPriorityB - statusPriorityA;
             }
             
-            // Secondary sort by start year (newer first)
-            return b.year - a.year;
+            // Priority 2: Recent studies
+            const yearA = a.year || 0;
+            const yearB = b.year || 0;
+            if (yearA !== yearB) {
+                return yearB - yearA;
+            }
+            
+            // Priority 3: Higher phases
+            const phaseA = getPhaseNumber(a.phases);
+            const phaseB = getPhaseNumber(b.phases);
+            return phaseB - phaseA;
         });
         
-        console.log(`ClinicalTrials.gov returned ${results.length} results`);
+        const endTime = performance.now();
+        const responseTime = Math.round(endTime - startTime);
+        
+        console.log(`ClinicalTrials.gov search completed: ${results.length} results in ${responseTime}ms`);
 
         return res.status(200).json({
             results: results,
             total: results.length,
             query: query,
-            filters: {
-                status,
-                phase,
-                study_type,
-                sponsor
-            },
-            search_timestamp: new Date().toISOString()
+            filters: { status, phase, sponsor, study_type },
+            search_strategies: searchResults.strategies,
+            search_timestamp: new Date().toISOString(),
+            response_time: responseTime,
+            api_status: 'success',
+            data_source: 'ClinicalTrials.gov API v2'
         });
 
     } catch (error) {
+        const endTime = performance.now();
+        const responseTime = Math.round(endTime - startTime);
+        
         console.error('ClinicalTrials.gov API error:', error);
-        return res.status(500).json({ 
-            error: 'Internal server error', 
+        
+        return res.status(500).json({
+            error: 'ClinicalTrials.gov API error',
             message: error.message,
             results: [],
             total: 0,
-            query: query
+            query: query,
+            response_time: responseTime,
+            search_timestamp: new Date().toISOString()
         });
     }
+}
+
+// Helper functions
+function getStatusPriority(status) {
+    if (!status) return 0;
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('recruiting')) return 5;
+    if (statusLower.includes('active')) return 4;
+    if (statusLower.includes('completed')) return 3;
+    if (statusLower.includes('enrolling')) return 4;
+    if (statusLower.includes('not yet recruiting')) return 3;
+    if (statusLower.includes('terminated') || statusLower.includes('withdrawn')) return 1;
+    return 2;
+}
+
+function getPhaseNumber(phases) {
+    if (!phases || phases.length === 0) return 0;
+    const phaseNumbers = phases.map(phase => {
+        if (phase.includes('4') || phase.includes('IV')) return 4;
+        if (phase.includes('3') || phase.includes('III')) return 3;
+        if (phase.includes('2') || phase.includes('II')) return 2;
+        if (phase.includes('1') || phase.includes('I')) return 1;
+        return 0;
+    });
+    return Math.max(...phaseNumbers);
 }
