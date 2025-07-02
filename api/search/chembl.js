@@ -1,28 +1,329 @@
-// api/search/chembl.js - Enhanced ChEMBL implementation with bioactive molecules and clinical data
-// Replace your current api/search/chembl.js file with this enhanced version
+// api/search/chembl.js - ENHANCED VERSION for comprehensive drug discovery results
+// Replace your current chembl.js with this enhanced version
 
 /**
- * Enhanced ChEMBL API handler for bioactive molecules and drug discovery data
- * Returns actionable drug data with bioactivity, clinical phases, and mechanism information
+ * Enhanced ChEMBL API handler optimized for pharmaceutical research
+ * Returns comprehensive drug discovery data with bioactivity, targets, and clinical info
  */
 
 const CHEMBL_CONFIG = {
     baseUrl: 'https://www.ebi.ac.uk/chembl/api/data',
     webUrl: 'https://www.ebi.ac.uk/chembl',
-    maxRetries: 3,
-    timeout: 30000,
-    rateLimit: 20 // requests per second
+    maxRetries: 2,
+    timeout: 20000,
+    rateLimit: 15 // More aggressive for comprehensive results
 };
 
 /**
- * Execute ChEMBL API request with error handling and retries
+ * ENHANCED search strategies for comprehensive drug discovery data
  */
-async function executeChEMBLRequest(endpoint, params = {}, retries = 3) {
-    const url = new URL(`${CHEMBL_CONFIG.baseUrl}/${endpoint}`);
+async function comprehensiveChEMBLSearch(query, limit = 200) {
+    const allResults = [];
+    const searchStrategies = [];
     
-    // Add default parameters
-    params.format = 'json';
-    if (!params.limit) params.limit = 50;
+    console.log(`ChEMBL: Starting comprehensive search for "${query}"`);
+    
+    try {
+        // Strategy 1: Molecule search (primary for drug discovery)
+        const moleculeResults = await searchMolecules(query, Math.min(limit, 100));
+        if (moleculeResults.length > 0) {
+            allResults.push(...moleculeResults);
+            searchStrategies.push(`Molecules: ${moleculeResults.length} results`);
+            console.log(`ChEMBL: Found ${moleculeResults.length} molecules`);
+        }
+        
+        // Strategy 2: Target search for comprehensive protein data
+        const targetResults = await searchTargets(query, Math.min(50, limit - allResults.length));
+        if (targetResults.length > 0) {
+            allResults.push(...targetResults);
+            searchStrategies.push(`Targets: ${targetResults.length} results`);
+            console.log(`ChEMBL: Found ${targetResults.length} targets`);
+        }
+        
+        // Strategy 3: Bioactivity search for mechanism data
+        const bioactivityResults = await searchBioactivities(query, Math.min(100, limit - allResults.length));
+        if (bioactivityResults.length > 0) {
+            allResults.push(...bioactivityResults);
+            searchStrategies.push(`Bioactivities: ${bioactivityResults.length} results`);
+            console.log(`ChEMBL: Found ${bioactivityResults.length} bioactivities`);
+        }
+        
+        // Strategy 4: Drug indication search
+        const indicationResults = await searchByIndication(query, Math.min(50, limit - allResults.length));
+        if (indicationResults.length > 0) {
+            allResults.push(...indicationResults);
+            searchStrategies.push(`Indications: ${indicationResults.length} results`);
+            console.log(`ChEMBL: Found ${indicationResults.length} indication matches`);
+        }
+        
+    } catch (error) {
+        console.error('ChEMBL comprehensive search error:', error);
+        searchStrategies.push(`Error: ${error.message}`);
+    }
+    
+    // Remove duplicates and enhance data
+    const uniqueResults = removeDuplicates(allResults);
+    const enhancedResults = await enhanceResultsWithAdditionalData(uniqueResults);
+    
+    console.log(`ChEMBL: Comprehensive search completed - ${enhancedResults.length} unique results`);
+    
+    return {
+        results: enhancedResults,
+        strategies: searchStrategies,
+        totalFound: enhancedResults.length
+    };
+}
+
+/**
+ * Enhanced molecule search with comprehensive data
+ */
+async function searchMolecules(query, limit = 100) {
+    try {
+        const searchParams = {
+            q: query,
+            limit: limit,
+            format: 'json'
+        };
+        
+        const response = await executeChEMBLRequest('molecule/search.json', searchParams);
+        
+        if (!response?.molecules) {
+            // Fallback to broader search
+            const broadResponse = await executeChEMBLRequest('molecule.json', {
+                pref_name__icontains: query,
+                limit: Math.min(limit, 50),
+                format: 'json'
+            });
+            return processMoleculeData(broadResponse?.molecules || []);
+        }
+        
+        return processMoleculeData(response.molecules);
+        
+    } catch (error) {
+        console.error('ChEMBL molecule search error:', error);
+        return [];
+    }
+}
+
+/**
+ * Enhanced target search
+ */
+async function searchTargets(query, limit = 50) {
+    try {
+        const searchParams = {
+            q: query,
+            limit: limit,
+            format: 'json'
+        };
+        
+        const response = await executeChEMBLRequest('target/search.json', searchParams);
+        return processTargetData(response?.targets || []);
+        
+    } catch (error) {
+        console.error('ChEMBL target search error:', error);
+        return [];
+    }
+}
+
+/**
+ * Enhanced bioactivity search for mechanism insights
+ */
+async function searchBioactivities(query, limit = 100) {
+    try {
+        // Search bioactivities by target or compound name
+        const searchParams = {
+            target_pref_name__icontains: query,
+            limit: limit,
+            format: 'json'
+        };
+        
+        const response = await executeChEMBLRequest('activity.json', searchParams);
+        return processBioactivityData(response?.activities || []);
+        
+    } catch (error) {
+        console.error('ChEMBL bioactivity search error:', error);
+        return [];
+    }
+}
+
+/**
+ * Search by drug indication
+ */
+async function searchByIndication(query, limit = 50) {
+    try {
+        const searchParams = {
+            indication_class__icontains: query,
+            limit: limit,
+            format: 'json'
+        };
+        
+        const response = await executeChEMBLRequest('drug_indication.json', searchParams);
+        return processIndicationData(response?.drug_indications || []);
+        
+    } catch (error) {
+        console.error('ChEMBL indication search error:', error);
+        return [];
+    }
+}
+
+/**
+ * Process molecule data with enhanced information
+ */
+function processMoleculeData(molecules) {
+    return molecules.map((molecule, index) => {
+        const chemblId = molecule.molecule_chembl_id;
+        const name = molecule.pref_name || chemblId;
+        const phase = molecule.max_phase;
+        
+        return {
+            id: `CHEMBL-MOL-${chemblId}`,
+            database: 'ChEMBL',
+            title: `${name} - Drug Profile`,
+            type: `${molecule.molecule_type || 'Molecule'} - ${formatChEMBLPhase(phase)}`,
+            status_significance: determineChEMBLStatus(molecule),
+            details: createMoleculeDescription(molecule),
+            phase: formatChEMBLPhase(phase),
+            status: determineChEMBLStatus(molecule),
+            sponsor: 'Multiple (See ChEMBL)',
+            year: new Date().getFullYear(),
+            enrollment: 'N/A',
+            link: `${CHEMBL_CONFIG.webUrl}/compound_report_card/${chemblId}`,
+            
+            // ChEMBL-specific fields
+            chembl_id: chemblId,
+            molecule_type: molecule.molecule_type,
+            max_phase: phase,
+            molecular_weight: molecule.molecule_properties?.molecular_weight,
+            alogp: molecule.molecule_properties?.alogp,
+            hbd: molecule.molecule_properties?.hbd,
+            hba: molecule.molecule_properties?.hba,
+            num_ro5_violations: molecule.molecule_properties?.num_ro5_violations,
+            indication_class: molecule.indication_class,
+            first_approval: molecule.first_approval,
+            
+            // Enhanced links
+            structure_link: `${CHEMBL_CONFIG.baseUrl}/image/${chemblId}`,
+            bioactivity_link: `${CHEMBL_CONFIG.webUrl}/compound_report_card/${chemblId}#bioactivity`,
+            
+            raw_data: molecule
+        };
+    });
+}
+
+/**
+ * Process target data
+ */
+function processTargetData(targets) {
+    return targets.map((target, index) => {
+        const chemblId = target.target_chembl_id;
+        const name = target.pref_name || chemblId;
+        
+        return {
+            id: `CHEMBL-TGT-${chemblId}`,
+            database: 'ChEMBL',
+            title: `${name} - Protein Target`,
+            type: `${target.target_type || 'Protein'} Target - ${target.organism || 'Unknown organism'}`,
+            status_significance: 'Drug Target',
+            details: createTargetDescription(target),
+            phase: 'N/A',
+            status: 'Drug Target',
+            sponsor: 'N/A',
+            year: new Date().getFullYear(),
+            enrollment: 'N/A',
+            link: `${CHEMBL_CONFIG.webUrl}/target_report_card/${chemblId}`,
+            
+            // Target-specific fields
+            chembl_id: chemblId,
+            target_type: target.target_type,
+            organism: target.organism,
+            tax_id: target.tax_id,
+            
+            raw_data: target
+        };
+    });
+}
+
+/**
+ * Process bioactivity data for mechanism insights
+ */
+function processBioactivityData(activities) {
+    const processedActivities = [];
+    
+    activities.forEach((activity, index) => {
+        const targetName = activity.target_pref_name || 'Unknown Target';
+        const compoundName = activity.molecule_pref_name || activity.molecule_chembl_id;
+        
+        processedActivities.push({
+            id: `CHEMBL-ACT-${activity.activity_id || index}`,
+            database: 'ChEMBL',
+            title: `${compoundName} → ${targetName}`,
+            type: `Bioactivity - ${activity.standard_type || 'Unknown'} assay`,
+            status_significance: 'Bioactivity Data',
+            details: createBioactivityDescription(activity),
+            phase: 'N/A',
+            status: 'Bioactivity Data',
+            sponsor: 'N/A',
+            year: new Date().getFullYear(),
+            enrollment: 'N/A',
+            link: activity.molecule_chembl_id ? 
+                `${CHEMBL_CONFIG.webUrl}/compound_report_card/${activity.molecule_chembl_id}` :
+                CHEMBL_CONFIG.webUrl,
+            
+            // Bioactivity-specific fields
+            molecule_chembl_id: activity.molecule_chembl_id,
+            target_chembl_id: activity.target_chembl_id,
+            assay_type: activity.assay_type,
+            standard_type: activity.standard_type,
+            standard_value: activity.standard_value,
+            standard_units: activity.standard_units,
+            standard_relation: activity.standard_relation,
+            
+            raw_data: activity
+        });
+    });
+    
+    return processedActivities;
+}
+
+/**
+ * Process drug indication data
+ */
+function processIndicationData(indications) {
+    return indications.map((indication, index) => {
+        const moleculeName = indication.molecule_pref_name || indication.molecule_chembl_id;
+        
+        return {
+            id: `CHEMBL-IND-${indication.drugind_id || index}`,
+            database: 'ChEMBL',
+            title: `${moleculeName} for ${indication.indication}`,
+            type: `Drug Indication - ${indication.indication_class || 'Unknown class'}`,
+            status_significance: 'Drug Indication',
+            details: `${moleculeName} indicated for ${indication.indication}. Max phase: ${indication.max_phase_for_ind || 'Unknown'}`,
+            phase: formatChEMBLPhase(indication.max_phase_for_ind),
+            status: 'Drug Indication',
+            sponsor: 'Multiple',
+            year: new Date().getFullYear(),
+            enrollment: 'N/A',
+            link: indication.molecule_chembl_id ? 
+                `${CHEMBL_CONFIG.webUrl}/compound_report_card/${indication.molecule_chembl_id}` :
+                CHEMBL_CONFIG.webUrl,
+            
+            // Indication-specific fields
+            molecule_chembl_id: indication.molecule_chembl_id,
+            indication: indication.indication,
+            indication_class: indication.indication_class,
+            max_phase_for_indication: indication.max_phase_for_ind,
+            
+            raw_data: indication
+        };
+    });
+}
+
+/**
+ * Execute ChEMBL API request with enhanced error handling
+ */
+async function executeChEMBLRequest(endpoint, params = {}, retries = 2) {
+    const url = new URL(`${CHEMBL_CONFIG.baseUrl}/${endpoint}`);
     
     Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -36,7 +337,7 @@ async function executeChEMBLRequest(endpoint, params = {}, retries = 3) {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'User-Agent': 'PharmaIntelligence/1.0'
+                    'User-Agent': 'PharmaceuticalIntelligence/3.0'
                 },
                 signal: AbortSignal.timeout(CHEMBL_CONFIG.timeout)
             });
@@ -45,322 +346,106 @@ async function executeChEMBLRequest(endpoint, params = {}, retries = 3) {
                 throw new Error(`ChEMBL API error: ${response.status} ${response.statusText}`);
             }
 
-            const data = await response.json();
-            return data;
+            return await response.json();
 
         } catch (error) {
             console.error(`ChEMBL API attempt ${attempt} failed:`, error);
             
             if (attempt === retries) {
-                throw new Error(`ChEMBL API failed after ${retries} attempts: ${error.message}`);
+                throw error;
             }
             
-            // Wait before retrying with exponential backoff
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
     }
 }
 
 /**
- * Format clinical phase for display
+ * Helper functions for data processing
  */
-function formatPhase(phase) {
-    if (phase === null || phase === undefined || phase === '') return 'Unknown';
+function formatChEMBLPhase(phase) {
+    if (phase === null || phase === undefined) return 'Unknown';
     if (phase === 0) return 'Preclinical';
     if (phase === 4) return 'Approved';
     return `Phase ${phase}`;
 }
 
-/**
- * Format molecule type for better display
- */
-function formatMoleculeType(type) {
-    const typeMap = {
-        'Small molecule': 'Small Molecule',
-        'Protein': 'Protein/Biologic',
-        'Oligosaccharide': 'Oligosaccharide',
-        'Oligonucleotide': 'Oligonucleotide',
-        'Cell': 'Cell Therapy',
-        'Unknown': 'Unknown Type'
-    };
-    return typeMap[type] || type || 'Unknown Type';
+function determineChEMBLStatus(molecule) {
+    if (molecule.max_phase === 4) return 'Approved';
+    if (molecule.max_phase >= 1) return 'Clinical Development';
+    return 'Research';
 }
 
-/**
- * Generate proper ChEMBL links
- */
-function generateChEMBLLinks(molecule) {
-    const chemblId = molecule.molecule_chembl_id;
+function createMoleculeDescription(molecule) {
+    const parts = [];
     
-    return {
-        primary: `${CHEMBL_CONFIG.webUrl}/compound_report_card/${chemblId}`,
-        molecule: `${CHEMBL_CONFIG.webUrl}/compound_report_card/${chemblId}`,
-        bioactivity: `${CHEMBL_CONFIG.webUrl}/compound_report_card/${chemblId}#bioactivity`,
-        mechanisms: `${CHEMBL_CONFIG.webUrl}/compound_report_card/${chemblId}#mechanisms`,
-        structure: molecule.structure_type ? `${CHEMBL_CONFIG.baseUrl}/image/${chemblId}` : null,
-        clinical_trials: chemblId ? `https://clinicaltrials.gov/search?term=${chemblId}` : null
-    };
+    if (molecule.molecule_type) parts.push(`Type: ${molecule.molecule_type}`);
+    if (molecule.max_phase !== null) parts.push(`Max Phase: ${molecule.max_phase}`);
+    if (molecule.indication_class) parts.push(`Indication: ${molecule.indication_class}`);
+    if (molecule.molecule_properties?.molecular_weight) {
+        parts.push(`MW: ${Math.round(molecule.molecule_properties.molecular_weight)} Da`);
+    }
+    if (molecule.first_approval) parts.push(`First Approval: ${molecule.first_approval}`);
+    
+    return parts.length > 0 ? parts.join(' | ') : 'ChEMBL molecule entry';
 }
 
-/**
- * Create detailed description from molecule data
- */
-function createMoleculeDescription(molecule, bioactivities = [], mechanisms = []) {
-    const components = [];
+function createTargetDescription(target) {
+    const parts = [];
     
-    if (molecule.indication_class) {
-        components.push(`Indication: ${molecule.indication_class}`);
-    }
+    if (target.target_type) parts.push(`Type: ${target.target_type}`);
+    if (target.organism) parts.push(`Organism: ${target.organism}`);
+    if (target.target_components?.length) parts.push(`Components: ${target.target_components.length}`);
     
-    if (bioactivities.length > 0) {
-        components.push(`Bioactivities: ${bioactivities.length} recorded`);
-        
-        // Get unique target types
-        const targetTypes = [...new Set(bioactivities
-            .map(b => b.target_type)
-            .filter(Boolean))];
-        if (targetTypes.length > 0) {
-            components.push(`Target types: ${targetTypes.slice(0, 3).join(', ')}`);
-        }
-    }
-    
-    if (mechanisms.length > 0) {
-        const uniqueMechanisms = [...new Set(mechanisms
-            .map(m => m.mechanism_of_action)
-            .filter(Boolean))];
-        if (uniqueMechanisms.length > 0) {
-            components.push(`Mechanisms: ${uniqueMechanisms.slice(0, 2).join(', ')}`);
-        }
-    }
-    
-    if (molecule.molecular_weight) {
-        components.push(`MW: ${Math.round(molecule.molecular_weight)} Da`);
-    }
-    
-    if (molecule.alogp) {
-        components.push(`LogP: ${parseFloat(molecule.alogp).toFixed(1)}`);
-    }
-    
-    return components.length > 0 ? components.join(' | ') : 'ChEMBL bioactive molecule';
+    return parts.length > 0 ? parts.join(' | ') : 'ChEMBL protein target';
 }
 
-/**
- * Get additional molecule data (bioactivities and mechanisms)
- */
-async function getAdditionalMoleculeData(chemblId) {
-    try {
-        const [bioactivities, mechanisms] = await Promise.allSettled([
-            executeChEMBLRequest(`activity.json`, { 
-                molecule_chembl_id: chemblId,
-                limit: 10
-            }),
-            executeChEMBLRequest(`mechanism.json`, { 
-                molecule_chembl_id: chemblId,
-                limit: 10
-            })
-        ]);
-
-        return {
-            bioactivities: bioactivities.status === 'fulfilled' ? bioactivities.value.activities || [] : [],
-            mechanisms: mechanisms.status === 'fulfilled' ? mechanisms.value.mechanisms || [] : []
-        };
-    } catch (error) {
-        console.error(`Error fetching additional data for ${chemblId}:`, error);
-        return { bioactivities: [], mechanisms: [] };
-    }
-}
-
-/**
- * Search molecules by text query
- */
-async function searchMolecules(query, limit = 50) {
-    try {
-        // First try molecule search
-        const moleculeData = await executeChEMBLRequest('molecule/search.json', {
-            q: query,
-            limit: limit
-        });
-
-        if (!moleculeData.molecules || moleculeData.molecules.length === 0) {
-            // If no molecules found, try a broader search
-            const broadData = await executeChEMBLRequest('molecule.json', {
-                pref_name__icontains: query,
-                limit: Math.min(limit, 20)
-            });
-            return broadData.molecules || [];
-        }
-
-        return moleculeData.molecules || [];
-    } catch (error) {
-        console.error('ChEMBL molecule search error:', error);
-        return [];
-    }
-}
-
-/**
- * Search targets by text query
- */
-async function searchTargets(query, limit = 20) {
-    try {
-        const targetData = await executeChEMBLRequest('target/search.json', {
-            q: query,
-            limit: limit
-        });
-
-        return targetData.targets || [];
-    } catch (error) {
-        console.error('ChEMBL target search error:', error);
-        return [];
-    }
-}
-
-/**
- * Format molecule data for consistent output
- */
-async function formatMoleculeData(molecules) {
-    const results = [];
+function createBioactivityDescription(activity) {
+    const parts = [];
     
-    for (const molecule of molecules) {
-        try {
-            // Get additional data for more detailed information
-            const additionalData = await getAdditionalMoleculeData(molecule.molecule_chembl_id);
-            
-            const links = generateChEMBLLinks(molecule);
-            const description = createMoleculeDescription(
-                molecule, 
-                additionalData.bioactivities, 
-                additionalData.mechanisms
-            );
-            
-            const phase = formatPhase(molecule.max_phase);
-            const moleculeType = formatMoleculeType(molecule.molecule_type);
-            
-            // Determine status based on phase and availability
-            let status = 'Research';
-            if (molecule.max_phase === 4) status = 'Approved';
-            else if (molecule.max_phase === 3) status = 'Phase III';
-            else if (molecule.max_phase === 2) status = 'Phase II';
-            else if (molecule.max_phase === 1) status = 'Phase I';
-            else if (molecule.max_phase === 0) status = 'Preclinical';
-            
-            // Extract year from first approval or use current year
-            const year = molecule.first_approval ? new Date(molecule.first_approval).getFullYear() : new Date().getFullYear();
-            
-            results.push({
-                id: `CHEMBL-${molecule.molecule_chembl_id}`,
-                database: 'ChEMBL',
-                title: molecule.pref_name || molecule.molecule_chembl_id,
-                type: `${moleculeType} - ${phase}`,
-                status_significance: status,
-                details: description,
-                phase: phase,
-                status: status,
-                sponsor: 'Multiple (See ChEMBL)',
-                year: year,
-                enrollment: 'N/A',
-                link: links.primary,
-                
-                // ChEMBL-specific fields
-                chembl_id: molecule.molecule_chembl_id,
-                molecule_type: moleculeType,
-                max_phase: molecule.max_phase,
-                indication_class: molecule.indication_class,
-                molecular_weight: molecule.molecular_weight,
-                alogp: molecule.alogp,
-                bioactivities_count: additionalData.bioactivities.length,
-                mechanisms_count: additionalData.mechanisms.length,
-                
-                // Additional links
-                structure_link: links.structure,
-                bioactivity_link: links.bioactivity,
-                mechanisms_link: links.mechanisms,
-                clinical_trials_link: links.clinical_trials,
-                
-                // Raw data for further processing
-                raw_data: {
-                    molecule: molecule,
-                    bioactivities: additionalData.bioactivities,
-                    mechanisms: additionalData.mechanisms
-                }
-            });
-            
-        } catch (error) {
-            console.error(`Error processing molecule ${molecule.molecule_chembl_id}:`, error);
-            
-            // Add basic data even if detailed processing fails
-            const links = generateChEMBLLinks(molecule);
-            results.push({
-                id: `CHEMBL-${molecule.molecule_chembl_id}`,
-                database: 'ChEMBL',
-                title: molecule.pref_name || molecule.molecule_chembl_id,
-                type: `${formatMoleculeType(molecule.molecule_type)} - ${formatPhase(molecule.max_phase)}`,
-                status_significance: molecule.max_phase === 4 ? 'Approved' : 'Research',
-                details: 'ChEMBL bioactive molecule',
-                phase: formatPhase(molecule.max_phase),
-                status: molecule.max_phase === 4 ? 'Approved' : 'Research',
-                sponsor: 'Multiple (See ChEMBL)',
-                year: new Date().getFullYear(),
-                enrollment: 'N/A',
-                link: links.primary,
-                chembl_id: molecule.molecule_chembl_id,
-                raw_data: { molecule: molecule }
-            });
-        }
+    if (activity.standard_type && activity.standard_value && activity.standard_units) {
+        parts.push(`${activity.standard_type}: ${activity.standard_relation || ''}${activity.standard_value} ${activity.standard_units}`);
     }
+    if (activity.assay_type) parts.push(`Assay: ${activity.assay_type}`);
+    if (activity.target_pref_name) parts.push(`Target: ${activity.target_pref_name}`);
     
-    return results;
+    return parts.length > 0 ? parts.join(' | ') : 'ChEMBL bioactivity data';
 }
 
-/**
- * Format target data for consistent output
- */
-function formatTargetData(targets) {
-    return targets.map((target, index) => {
-        const links = {
-            primary: `${CHEMBL_CONFIG.webUrl}/target_report_card/${target.target_chembl_id}`,
-            target: `${CHEMBL_CONFIG.webUrl}/target_report_card/${target.target_chembl_id}`,
-            bioactivity: `${CHEMBL_CONFIG.webUrl}/target_report_card/${target.target_chembl_id}#bioactivity`
-        };
-        
-        const description = [
-            target.target_type ? `Type: ${target.target_type}` : '',
-            target.organism ? `Organism: ${target.organism}` : '',
-            target.target_components?.length ? `Components: ${target.target_components.length}` : ''
-        ].filter(Boolean).join(' | ') || 'ChEMBL protein target';
-        
-        return {
-            id: `CHEMBL-TARGET-${target.target_chembl_id}`,
-            database: 'ChEMBL',
-            title: target.pref_name || target.target_chembl_id,
-            type: `${target.target_type || 'Protein Target'} - ${target.organism || 'Unknown organism'}`,
-            status_significance: 'Target',
-            details: description,
-            phase: 'N/A',
-            status: 'Target',
-            sponsor: 'N/A',
-            year: new Date().getFullYear(),
-            enrollment: 'N/A',
-            link: links.primary,
-            
-            // Target-specific fields
-            chembl_id: target.target_chembl_id,
-            target_type: target.target_type,
-            organism: target.organism,
-            target_components: target.target_components,
-            
-            // Additional links
-            bioactivity_link: links.bioactivity,
-            
-            raw_data: target
-        };
+function removeDuplicates(results) {
+    const seen = new Set();
+    return results.filter(result => {
+        const key = result.id || result.chembl_id || Math.random();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
     });
+}
+
+async function enhanceResultsWithAdditionalData(results) {
+    // For now, return as-is. In production, could fetch additional mechanism data
+    return results.sort((a, b) => {
+        // Sort by clinical relevance
+        const phaseA = extractPhaseNumber(a.phase);
+        const phaseB = extractPhaseNumber(b.phase);
+        return phaseB - phaseA;
+    });
+}
+
+function extractPhaseNumber(phase) {
+    if (!phase) return 0;
+    if (phase.includes('Approved')) return 4;
+    if (phase.includes('Phase IV')) return 4;
+    if (phase.includes('Phase III')) return 3;
+    if (phase.includes('Phase II')) return 2;
+    if (phase.includes('Phase I')) return 1;
+    return 0;
 }
 
 /**
  * Main API handler
  */
 export default async function handler(req, res) {
-    // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -374,69 +459,53 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { query, limit = 50, search_type = 'molecule' } = req.query;
+    const { query, limit = 200 } = req.query;
 
     if (!query) {
-        return res.status(400).json({ error: 'Query parameter is required' });
+        return res.status(400).json({ 
+            error: 'Query parameter is required',
+            example: 'Try: "imatinib" or "kinase inhibitor" or "cancer"'
+        });
     }
 
+    const startTime = performance.now();
+
     try {
-        console.log(`ChEMBL search for: "${query}" (type: ${search_type})`);
+        console.log(`ChEMBL comprehensive search for: "${query}"`);
         
-        const searchLimit = Math.min(parseInt(limit) || 50, 100);
-        let results = [];
-
-        if (search_type === 'molecule' || search_type === 'all') {
-            // Search for molecules
-            const molecules = await searchMolecules(query, searchLimit);
-            if (molecules.length > 0) {
-                const moleculeResults = await formatMoleculeData(molecules);
-                results.push(...moleculeResults);
-            }
-        }
-
-        if (search_type === 'target' || search_type === 'all') {
-            // Search for targets
-            const targets = await searchTargets(query, Math.min(searchLimit, 20));
-            if (targets.length > 0) {
-                const targetResults = formatTargetData(targets);
-                results.push(...targetResults);
-            }
-        }
-
-        // Remove duplicates and sort by relevance
-        const uniqueResults = results.filter((item, index, self) => 
-            index === self.findIndex(t => t.id === item.id)
-        );
-
-        // Sort by clinical phase (approved first, then by phase)
-        uniqueResults.sort((a, b) => {
-            if (a.status === 'Approved' && b.status !== 'Approved') return -1;
-            if (a.status !== 'Approved' && b.status === 'Approved') return 1;
-            
-            const phaseA = a.raw_data?.molecule?.max_phase || 0;
-            const phaseB = b.raw_data?.molecule?.max_phase || 0;
-            return phaseB - phaseA;
-        });
-
-        console.log(`ChEMBL returned ${uniqueResults.length} results`);
+        const searchLimit = Math.min(parseInt(limit) || 200, 500);
+        const searchResults = await comprehensiveChEMBLSearch(query, searchLimit);
+        
+        const endTime = performance.now();
+        const responseTime = Math.round(endTime - startTime);
+        
+        console.log(`ChEMBL search completed: ${searchResults.results.length} results in ${responseTime}ms`);
 
         return res.status(200).json({
-            results: uniqueResults.slice(0, searchLimit),
-            total: uniqueResults.length,
+            results: searchResults.results,
+            total: searchResults.results.length,
             query: query,
-            search_type: search_type,
-            search_timestamp: new Date().toISOString()
+            search_strategies: searchResults.strategies,
+            search_timestamp: new Date().toISOString(),
+            response_time: responseTime,
+            api_status: 'success',
+            data_source: 'ChEMBL API'
         });
 
     } catch (error) {
+        const endTime = performance.now();
+        const responseTime = Math.round(endTime - startTime);
+        
         console.error('ChEMBL API error:', error);
-        return res.status(500).json({ 
-            error: 'Internal server error', 
+        
+        return res.status(500).json({
+            error: 'ChEMBL API error',
             message: error.message,
             results: [],
             total: 0,
-            query: query
+            query: query,
+            response_time: responseTime,
+            search_timestamp: new Date().toISOString()
         });
     }
 }
