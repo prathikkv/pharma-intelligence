@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, Download, Filter, Database, BarChart3, TrendingUp, AlertCircle, CheckCircle, Clock, Star, StarOff, Eye, EyeOff, Loader2, RefreshCw, ArrowUpDown, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react';
+import { Search, Download, Filter, Database, BarChart3, TrendingUp, AlertCircle, CheckCircle, Clock, Star, StarOff, Eye, EyeOff, Loader2, RefreshCw, ArrowUpDown, ChevronDown, ChevronUp, X, ExternalLink, Table, FileSpreadsheet } from 'lucide-react';
 
 const PharmaceuticalIntelligenceSystem = () => {
     // Core State Management
-    const [selectedDatabases, setSelectedDatabases] = useState([]);
+    const [selectedDatabases, setSelectedDatabases] = useState(['clinicaltrials', 'opentargets']); // Default selection
     const [searchQuery, setSearchQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -29,10 +29,68 @@ const PharmaceuticalIntelligenceSystem = () => {
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [expandedResult, setExpandedResult] = useState(null);
 
-    // Comprehensive inline styles
+    // Focused Database Configuration (6 databases as requested)
+    const databases = [
+        { 
+            id: 'clinicaltrials', 
+            name: 'ClinicalTrials.gov', 
+            description: '480K+ clinical trials - The gold standard for clinical research',
+            endpoint: '/api/search/clinicaltrials',
+            icon: '🏥',
+            category: 'Clinical',
+            priority: 'high'
+        },
+        { 
+            id: 'opentargets', 
+            name: 'Open Targets', 
+            description: '29K+ target-disease associations - Comprehensive drug-target-disease data',
+            endpoint: '/api/search/opentargets',
+            icon: '🎯',
+            category: 'Targets',
+            priority: 'high'
+        },
+        { 
+            id: 'hpa', 
+            name: 'Human Protein Atlas', 
+            description: '19K+ protein expressions - Tissue-specific protein data',
+            endpoint: '/api/search/hpa',
+            icon: '🔬',
+            category: 'Proteins',
+            priority: 'medium'
+        },
+        { 
+            id: 'clinvar', 
+            name: 'ClinVar', 
+            description: '2.1M+ genetic variants - Clinical significance of genetic variants',
+            endpoint: '/api/search/clinvar',
+            icon: '🧬',
+            category: 'Genetics',
+            priority: 'medium'
+        },
+        { 
+            id: 'mgi', 
+            name: 'MGI (Mouse Genome)', 
+            description: '1.2M+ mouse genome records - Model organism data',
+            endpoint: '/api/search/mgi',
+            icon: '🐭',
+            category: 'Genomics',
+            priority: 'medium'
+        },
+        { 
+            id: 'iuphar', 
+            name: 'IUPHAR/BPS', 
+            description: '3.5K+ pharmacology targets - Drug-target interactions',
+            endpoint: '/api/search/iuphar',
+            icon: '💊',
+            category: 'Pharmacology',
+            priority: 'medium'
+        }
+    ];
+
+    // Enhanced inline styles with better layout
     const styles = {
         container: {
-            maxWidth: '1200px',
+            maxWidth: '1400px', // Increased width
             margin: '0 auto',
             padding: '20px',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -40,11 +98,11 @@ const PharmaceuticalIntelligenceSystem = () => {
             minHeight: '100vh'
         },
         header: {
-            marginBottom: '30px',
+            marginBottom: '20px', // Reduced margin
             textAlign: 'center'
         },
         title: {
-            fontSize: '2.5rem',
+            fontSize: '2.25rem', // Slightly smaller
             fontWeight: 'bold',
             color: '#1a202c',
             marginBottom: '8px',
@@ -54,13 +112,60 @@ const PharmaceuticalIntelligenceSystem = () => {
             backgroundClip: 'text'
         },
         subtitle: {
-            fontSize: '1.1rem',
+            fontSize: '1rem',
             color: '#4a5568',
-            marginBottom: '20px'
+            marginBottom: '15px'
         },
+        
+        // Search Section at Top
+        searchSection: {
+            backgroundColor: '#f8fafc',
+            borderRadius: '16px',
+            padding: '24px',
+            marginBottom: '25px',
+            border: '2px solid #e2e8f0',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
+        },
+        searchTitle: {
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            color: '#2d3748',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        },
+        searchInputContainer: {
+            display: 'flex',
+            gap: '12px',
+            marginBottom: '16px'
+        },
+        searchInputWrapper: {
+            position: 'relative',
+            flex: 1
+        },
+        searchInput: {
+            width: '100%',
+            padding: '14px 16px 14px 44px', // Increased padding
+            border: '2px solid #e2e8f0',
+            borderRadius: '12px',
+            fontSize: '1.1rem', // Larger font
+            outline: 'none',
+            transition: 'border-color 0.2s ease',
+            minHeight: '52px' // Minimum height to ensure visibility
+        },
+        searchIcon: {
+            position: 'absolute',
+            left: '14px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#a0aec0'
+        },
+        
+        // Tab Navigation
         tabContainer: {
             borderBottom: '2px solid #e2e8f0',
-            marginBottom: '30px'
+            marginBottom: '25px'
         },
         tabNav: {
             display: 'flex',
@@ -68,7 +173,7 @@ const PharmaceuticalIntelligenceSystem = () => {
             marginBottom: '-2px'
         },
         tab: {
-            padding: '12px 20px',
+            padding: '12px 24px',
             border: 'none',
             background: 'none',
             fontSize: '1rem',
@@ -76,32 +181,46 @@ const PharmaceuticalIntelligenceSystem = () => {
             cursor: 'pointer',
             borderBottom: '2px solid transparent',
             color: '#718096',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
         },
         activeTab: {
-            padding: '12px 20px',
+            padding: '12px 24px',
             border: 'none',
             background: 'none',
             fontSize: '1rem',
             fontWeight: '500',
             cursor: 'pointer',
             borderBottom: '2px solid #4299e1',
-            color: '#4299e1'
+            color: '#4299e1',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+        },
+        
+        // Database Selection
+        databaseSection: {
+            marginBottom: '25px'
         },
         sectionTitle: {
-            fontSize: '1.5rem',
+            fontSize: '1.25rem',
             fontWeight: '600',
             color: '#2d3748',
-            marginBottom: '20px'
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
         },
         databaseGrid: {
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '15px',
-            marginBottom: '30px'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', // Wider cards
+            gap: '16px',
+            marginBottom: '20px'
         },
         databaseCard: {
-            padding: '16px',
+            padding: '18px',
             border: '2px solid #e2e8f0',
             borderRadius: '12px',
             cursor: 'pointer',
@@ -109,10 +228,11 @@ const PharmaceuticalIntelligenceSystem = () => {
             backgroundColor: '#ffffff',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px'
+            gap: '14px',
+            position: 'relative'
         },
         databaseCardSelected: {
-            padding: '16px',
+            padding: '18px',
             border: '2px solid #4299e1',
             borderRadius: '12px',
             cursor: 'pointer',
@@ -120,126 +240,159 @@ const PharmaceuticalIntelligenceSystem = () => {
             backgroundColor: '#ebf8ff',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            boxShadow: '0 4px 12px rgba(66, 153, 225, 0.15)'
+            gap: '14px',
+            boxShadow: '0 4px 12px rgba(66, 153, 225, 0.15)',
+            position: 'relative'
         },
-        databaseIcon: {
-            fontSize: '2rem'
+        priorityBadge: {
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            fontSize: '0.7rem',
+            padding: '2px 6px',
+            borderRadius: '10px',
+            fontWeight: '500',
+            textTransform: 'uppercase'
         },
-        databaseInfo: {
-            flex: 1
+        highPriority: {
+            backgroundColor: '#f0fff4',
+            color: '#2f855a',
+            border: '1px solid #9ae6b4'
         },
-        databaseName: {
-            fontSize: '1rem',
+        mediumPriority: {
+            backgroundColor: '#fffaf0',
+            color: '#c05621',
+            border: '1px solid #fbd38d'
+        },
+        
+        // Results Section
+        resultsContainer: {
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            marginBottom: '30px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
+        },
+        resultsHeader: {
+            padding: '24px',
+            backgroundColor: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px'
+        },
+        resultsTitle: {
+            fontSize: '1.5rem',
             fontWeight: '600',
             color: '#2d3748',
-            marginBottom: '4px'
-        },
-        databaseDesc: {
-            fontSize: '0.875rem',
-            color: '#718096',
-            marginBottom: '4px'
-        },
-        databaseCategory: {
-            fontSize: '0.75rem',
-            color: '#a0aec0',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-        },
-        checkbox: {
-            width: '20px',
-            height: '20px',
-            borderRadius: '4px',
-            border: '2px solid #e2e8f0',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#ffffff'
+            gap: '8px'
         },
-        checkboxSelected: {
-            width: '20px',
-            height: '20px',
-            borderRadius: '4px',
-            border: '2px solid #4299e1',
+        resultsControls: {
             display: 'flex',
+            gap: '12px',
             alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#4299e1',
-            color: '#ffffff'
+            flexWrap: 'wrap'
         },
-        buttonGroup: {
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-            marginTop: '20px'
-        },
-        button: {
-            padding: '10px 20px',
+        controlInput: {
+            padding: '8px 12px',
+            border: '1px solid #e2e8f0',
             borderRadius: '8px',
-            border: 'none',
             fontSize: '0.875rem',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
+            minWidth: '150px'
         },
+        
+        // Buttons
         primaryButton: {
-            padding: '12px 24px',
+            padding: '14px 28px', // Larger buttons
             backgroundColor: '#4299e1',
             color: '#ffffff',
-            borderRadius: '8px',
+            borderRadius: '12px',
             border: 'none',
-            fontSize: '1rem',
+            fontSize: '1.1rem',
             fontWeight: '500',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '10px',
+            minHeight: '52px'
         },
         secondaryButton: {
-            padding: '10px 20px',
+            padding: '12px 24px',
             backgroundColor: '#718096',
             color: '#ffffff',
             borderRadius: '8px',
             border: 'none',
-            fontSize: '0.875rem',
+            fontSize: '0.9rem',
             fontWeight: '500',
             cursor: 'pointer',
             transition: 'all 0.2s ease'
         },
-        searchContainer: {
-            padding: '24px',
-            backgroundColor: '#f7fafc',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            marginBottom: '30px'
+        
+        // Table styles
+        table: {
+            width: '100%',
+            borderCollapse: 'collapse'
         },
-        searchInputContainer: {
-            display: 'flex',
-            gap: '12px',
-            marginBottom: '16px'
+        tableHeader: {
+            backgroundColor: '#f8fafc',
+            borderBottom: '2px solid #e2e8f0'
         },
-        searchInput: {
-            flex: 1,
-            padding: '12px 16px 12px 40px',
-            border: '2px solid #e2e8f0',
-            borderRadius: '8px',
-            fontSize: '1rem',
-            outline: 'none',
-            transition: 'border-color 0.2s ease',
-            position: 'relative'
+        tableHeaderCell: {
+            padding: '16px',
+            textAlign: 'left',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            color: '#4a5568',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            cursor: 'pointer'
         },
-        searchInputWrapper: {
-            position: 'relative',
-            flex: 1
+        tableRow: {
+            borderBottom: '1px solid #f1f5f9',
+            transition: 'background-color 0.2s ease'
         },
-        searchIcon: {
-            position: 'absolute',
-            left: '12px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: '#a0aec0'
+        tableCell: {
+            padding: '16px',
+            fontSize: '0.875rem',
+            color: '#2d3748',
+            verticalAlign: 'top'
         },
+        
+        // Status badges
+        statusBadge: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.025em'
+        },
+        statusActive: {
+            backgroundColor: '#c6f6d5',
+            color: '#22543d'
+        },
+        statusCompleted: {
+            backgroundColor: '#bee3f8',
+            color: '#2a4365'
+        },
+        statusApproved: {
+            backgroundColor: '#d4edda',
+            color: '#155724'
+        },
+        statusDefault: {
+            backgroundColor: '#e2e8f0',
+            color: '#4a5568'
+        },
+        
+        // Error and other states
         errorContainer: {
             padding: '16px',
             backgroundColor: '#fed7d7',
@@ -254,172 +407,6 @@ const PharmaceuticalIntelligenceSystem = () => {
             color: '#c53030',
             fontSize: '0.875rem'
         },
-        analyticsContainer: {
-            padding: '24px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '12px',
-            marginBottom: '30px',
-            color: '#ffffff'
-        },
-        analyticsTitle: {
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-        },
-        analyticsGrid: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '20px'
-        },
-        analyticsSection: {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            padding: '16px',
-            borderRadius: '8px'
-        },
-        analyticsSectionTitle: {
-            fontSize: '1rem',
-            fontWeight: '500',
-            marginBottom: '12px',
-            color: '#ffffff'
-        },
-        analyticsItem: {
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '6px 0',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-        },
-        analyticsLabel: {
-            fontSize: '0.875rem',
-            color: 'rgba(255, 255, 255, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-        },
-        analyticsValue: {
-            fontSize: '0.875rem',
-            fontWeight: '600',
-            color: '#ffffff'
-        },
-        resultsContainer: {
-            backgroundColor: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            marginBottom: '30px'
-        },
-        resultsHeader: {
-            padding: '20px',
-            backgroundColor: '#f7fafc',
-            borderBottom: '1px solid #e2e8f0',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px'
-        },
-        resultsTitle: {
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: '#2d3748'
-        },
-        resultsControls: {
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'center',
-            flexWrap: 'wrap'
-        },
-        controlInput: {
-            padding: '8px 12px',
-            border: '1px solid #e2e8f0',
-            borderRadius: '6px',
-            fontSize: '0.875rem'
-        },
-        table: {
-            width: '100%',
-            borderCollapse: 'collapse'
-        },
-        tableHeader: {
-            backgroundColor: '#f7fafc',
-            borderBottom: '1px solid #e2e8f0'
-        },
-        tableHeaderCell: {
-            padding: '12px 16px',
-            textAlign: 'left',
-            fontSize: '0.75rem',
-            fontWeight: '600',
-            color: '#4a5568',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-        },
-        tableRow: {
-            borderBottom: '1px solid #f1f5f9',
-            transition: 'background-color 0.2s ease'
-        },
-        tableCell: {
-            padding: '16px',
-            fontSize: '0.875rem',
-            color: '#2d3748',
-            verticalAlign: 'top'
-        },
-        statusBadge: {
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '0.75rem',
-            fontWeight: '600'
-        },
-        statusActive: {
-            backgroundColor: '#c6f6d5',
-            color: '#22543d'
-        },
-        statusCompleted: {
-            backgroundColor: '#bee3f8',
-            color: '#2a4365'
-        },
-        statusRecruiting: {
-            backgroundColor: '#faf089',
-            color: '#744210'
-        },
-        statusApproved: {
-            backgroundColor: '#d4edda',
-            color: '#155724'
-        },
-        statusDefault: {
-            backgroundColor: '#e2e8f0',
-            color: '#4a5568'
-        },
-        actionButton: {
-            padding: '6px 12px',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '0.75rem',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-        },
-        bookmarkButton: {
-            padding: '4px',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            color: '#a0aec0',
-            transition: 'color 0.2s ease'
-        },
-        bookmarkButtonActive: {
-            padding: '4px',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            color: '#f6e05e',
-            transition: 'color 0.2s ease'
-        },
         emptyState: {
             textAlign: 'center',
             padding: '60px 20px',
@@ -430,6 +417,8 @@ const PharmaceuticalIntelligenceSystem = () => {
             marginBottom: '16px',
             color: '#a0aec0'
         },
+        
+        // Utility classes
         badge: {
             display: 'inline-block',
             padding: '4px 8px',
@@ -438,111 +427,8 @@ const PharmaceuticalIntelligenceSystem = () => {
             borderRadius: '12px',
             fontSize: '0.75rem',
             fontWeight: '500'
-        },
-        logContainer: {
-            backgroundColor: '#f7fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            padding: '16px',
-            marginBottom: '20px'
-        },
-        logEntry: {
-            padding: '12px',
-            backgroundColor: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '6px',
-            marginBottom: '8px'
         }
     };
-
-    // Database Configuration - Production Ready (10 databases)
-    const databases = [
-        { 
-            id: 'clinicaltrials', 
-            name: 'ClinicalTrials.gov', 
-            description: '480K+ clinical trials',
-            endpoint: '/api/search/clinicaltrials',
-            icon: '🔬',
-            category: 'Clinical'
-        },
-        { 
-            id: 'opentargets', 
-            name: 'Open Targets', 
-            description: '29K+ target-disease associations',
-            endpoint: '/api/search/opentargets',
-            icon: '🎯',
-            category: 'Targets'
-        },
-        { 
-            id: 'clinvar', 
-            name: 'ClinVar', 
-            description: '2.1M+ genetic variants',
-            endpoint: '/api/search/clinvar',
-            icon: '🧬',
-            category: 'Genetics'
-        },
-        { 
-            id: 'hpa', 
-            name: 'Human Protein Atlas', 
-            description: '19K+ protein expressions',
-            endpoint: '/api/search/hpa',
-            icon: '🔬',
-            category: 'Proteins'
-        },
-        { 
-            id: 'chembl', 
-            name: 'ChEMBL', 
-            description: '2.3M+ bioactivity records',
-            endpoint: '/api/search/chembl',
-            icon: '⚗️',
-            category: 'Chemistry'
-        },
-        { 
-            id: 'drugbank', 
-            name: 'DrugBank', 
-            description: '14K+ drug entries',
-            endpoint: '/api/search/drugbank',
-            icon: '💊',
-            category: 'Drugs'
-        },
-        { 
-            id: 'uniprot', 
-            name: 'UniProt', 
-            description: '240M+ protein sequences',
-            endpoint: '/api/search/uniprot',
-            icon: '🧬',
-            category: 'Proteins'
-        },
-        { 
-            id: 'pubmed', 
-            name: 'PubMed', 
-            description: '35M+ research papers',
-            endpoint: '/api/search/pubmed',
-            icon: '📚',
-            category: 'Literature'
-        },
-        { 
-            id: 'mgi', 
-            name: 'MGI', 
-            description: '1.2M+ mouse genome records',
-            endpoint: '/api/search/mgi',
-            icon: '🐭',
-            category: 'Genomics'
-        },
-        { 
-            id: 'iuphar', 
-            name: 'IUPHAR/BPS', 
-            description: '3.5K+ pharmacology targets',
-            endpoint: '/api/search/iuphar',
-            icon: '💉',
-            category: 'Pharmacology'
-        }
-    ];
-
-    // Initialize with all databases selected
-    useEffect(() => {
-        setSelectedDatabases(databases.map(db => db.id));
-    }, []);
 
     // Enhanced status priority for pharmaceutical research
     const getEnhancedStatusPriority = useCallback((status) => {
@@ -562,16 +448,16 @@ const PharmaceuticalIntelligenceSystem = () => {
     }, []);
 
     // Database priority for pharmaceutical research
-    const getDatabasePriority = useCallback((category, database) => {
-        if (category === 'Clinical') return 10;  // ClinicalTrials.gov
-        if (category === 'Drugs' || category === 'Chemistry') return 9;  // DrugBank, ChEMBL
-        if (category === 'Targets') return 8;  // Open Targets
-        if (category === 'Genetics') return 7;  // ClinVar
-        if (category === 'Proteins') return 6;  // UniProt, HPA
-        if (category === 'Pharmacology') return 6;  // IUPHAR
-        if (category === 'Literature') return 5;  // PubMed
-        if (category === 'Genomics') return 4;  // MGI
-        return 3;
+    const getDatabasePriority = useCallback((dbId) => {
+        const priorityMap = {
+            'clinicaltrials': 10,
+            'opentargets': 9,
+            'hpa': 7,
+            'clinvar': 6,
+            'mgi': 5,
+            'iuphar': 8
+        };
+        return priorityMap[dbId] || 3;
     }, []);
 
     // Enhanced phase number extraction
@@ -624,16 +510,12 @@ const PharmaceuticalIntelligenceSystem = () => {
                 try {
                     // INCREASED LIMITS for comprehensive results
                     const limits = {
-                        'clinicaltrials': 1000,  // ClinicalTrials can handle large requests
-                        'opentargets': 300,      // Our enhanced Open Targets
-                        'chembl': 200,           // ChEMBL comprehensive search
-                        'pubmed': 100,           // PubMed rate limited
-                        'clinvar': 150,          // ClinVar genetic variants
-                        'drugbank': 100,         // DrugBank drug data
-                        'uniprot': 200,          // UniProt proteins
-                        'hpa': 100,              // Human Protein Atlas
-                        'mgi': 100,              // Mouse Genome Informatics
-                        'iuphar': 100            // IUPHAR/BPS pharmacology
+                        'clinicaltrials': 1000,
+                        'opentargets': 300,
+                        'hpa': 150,
+                        'clinvar': 150,
+                        'mgi': 100,
+                        'iuphar': 100
                     };
                     
                     const queryParams = new URLSearchParams({
@@ -651,7 +533,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                             'Accept': 'application/json',
                             'User-Agent': 'GRID-Intelligence/3.0'
                         },
-                        signal: AbortSignal.timeout(45000) // Increased timeout for comprehensive searches
+                        signal: AbortSignal.timeout(45000)
                     });
 
                     if (!response.ok) {
@@ -673,6 +555,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                             _id: `${dbId}_${item.id || item.nct_id || item.chembl_id || Math.random()}`,
                             _icon: database.icon,
                             _category: database.category,
+                            _priority: database.priority,
                             // STANDARDIZED fields across all databases
                             title: item.title || item.brief_title || item.name || item.pref_name || 'No title',
                             status: item.status || item.overall_status || item.status_significance || item.clinical_significance || 'Unknown',
@@ -722,10 +605,10 @@ const PharmaceuticalIntelligenceSystem = () => {
                 }
             });
 
-            // Wait for all searches with progress tracking
+            // Wait for all searches
             const searchResults = await Promise.allSettled(searchPromises);
             
-            // ENHANCED result processing and aggregation
+            // Process results
             const successfulResults = [];
             const failedResults = [];
             let totalResults = 0;
@@ -763,8 +646,8 @@ const PharmaceuticalIntelligenceSystem = () => {
                 }
                 
                 // Priority 2: Database relevance for drug research
-                const dbPriorityA = getDatabasePriority(a._category, a._database);
-                const dbPriorityB = getDatabasePriority(b._category, b._database);
+                const dbPriorityA = getDatabasePriority(a._database);
+                const dbPriorityB = getDatabasePriority(b._database);
                 if (dbPriorityA !== dbPriorityB) {
                     return dbPriorityB - dbPriorityA;
                 }
@@ -782,7 +665,7 @@ const PharmaceuticalIntelligenceSystem = () => {
             
             setResults(combinedResults);
             
-            // COMPREHENSIVE search logging
+            // Update search logs
             const searchEndTime = Date.now();
             const totalSearchTime = searchEndTime - searchStartTime;
             
@@ -793,20 +676,11 @@ const PharmaceuticalIntelligenceSystem = () => {
                         status: 'completed',
                         resultsCount: combinedResults.length,
                         duration: totalSearchTime,
-                        databases: searchResults.map(r => ({
-                            name: r.status === 'fulfilled' ? r.value.databaseName : 'Unknown',
-                            count: r.status === 'fulfilled' ? r.value.total : 0,
-                            error: r.status === 'fulfilled' ? r.value.error : r.reason?.message,
-                            searchTime: r.status === 'fulfilled' ? r.value.searchTime : 0,
-                            apiStatus: r.status === 'fulfilled' ? r.value.apiStatus : 'failed'
-                        })),
                         summary: {
                             successful: successfulResults.length,
                             failed: failedResults.length,
                             totalResults: combinedResults.length,
-                            avgSearchTime: Math.round(totalSearchTime / selectedDatabases.length),
-                            fastestDb: successfulResults.sort((a, b) => a.searchTime - b.searchTime)[0]?.databaseName,
-                            slowestDb: successfulResults.sort((a, b) => b.searchTime - a.searchTime)[0]?.databaseName
+                            avgSearchTime: Math.round(totalSearchTime / selectedDatabases.length)
                         }
                     }
                     : log
@@ -817,7 +691,6 @@ const PharmaceuticalIntelligenceSystem = () => {
             console.log(`📊 Results: ${combinedResults.length} total`);
             console.log(`✅ Successful databases: ${successfulResults.length}/${selectedDatabases.length}`);
             console.log(`⏱️ Total time: ${totalSearchTime}ms`);
-            console.log(`🔥 Top databases: ${successfulResults.slice(0, 3).map(r => `${r.databaseName}(${r.total})`).join(', ')}`);
             
             if (failedResults.length > 0) {
                 console.warn(`⚠️ Failed databases: ${failedResults.map(f => f.databaseName).join(', ')}`);
@@ -828,10 +701,8 @@ const PharmaceuticalIntelligenceSystem = () => {
                 setError(
                     `No results found for "${searchQuery}". ` +
                     `${failedResults.length > 0 ? `${failedResults.length} databases had errors. ` : ''}` +
-                    `💡 Try: (1) Broader terms like "cancer" or "diabetes", (2) Drug names like "imatinib", (3) Different databases.`
+                    `💡 Try: (1) Drug names like "imatinib" or "pembrolizumab", (2) Disease terms like "cancer" or "diabetes", (3) Gene symbols like "EGFR" or "TP53".`
                 );
-            } else if (combinedResults.length < 10) {
-                console.log(`💡 Tip: Try broader search terms for more results`);
             }
 
         } catch (error) {
@@ -900,11 +771,11 @@ const PharmaceuticalIntelligenceSystem = () => {
         return filtered;
     }, [results, searchWithinResults, databaseFilter, sortConfig]);
 
-    // Enhanced Analytics and Insights
+    // Enhanced Analytics
     const enhancedAnalytics = useMemo(() => {
         const analysisResults = enhancedFilteredResults;
         
-        // Database distribution with enhanced data
+        // Database distribution
         const databaseDistribution = databases.map(db => {
             const dbResults = analysisResults.filter(item => item._database === db.id);
             return {
@@ -923,7 +794,7 @@ const PharmaceuticalIntelligenceSystem = () => {
             return acc;
         }, {});
 
-        // Enhanced phase distribution with better parsing
+        // Enhanced phase distribution
         const phaseDistribution = analysisResults.reduce((acc, item) => {
             let phase = item.phase || 'Unknown';
             // Normalize phase names
@@ -938,43 +809,18 @@ const PharmaceuticalIntelligenceSystem = () => {
             return acc;
         }, {});
 
-        // Top sponsors with better data
-        const sponsorDistribution = Object.entries(
-            analysisResults.reduce((acc, item) => {
-                const sponsor = item.sponsor || item.lead_sponsor || 'Unknown';
-                acc[sponsor] = (acc[sponsor] || 0) + 1;
-                return acc;
-            }, {})
-        ).sort(([,a], [,b]) => b - a).slice(0, 10);
-
-        // Year distribution for trending analysis
-        const yearDistribution = analysisResults.reduce((acc, item) => {
-            const year = item.year || new Date().getFullYear();
-            acc[year] = (acc[year] || 0) + 1;
-            return acc;
-        }, {});
-
-        // Recent years for trending
-        const currentYear = new Date().getFullYear();
-        const recentYears = Object.entries(yearDistribution)
-            .filter(([year]) => parseInt(year) >= currentYear - 5)
-            .sort(([a], [b]) => b - a);
-
         return {
             total: analysisResults.length,
             databaseDistribution,
             statusDistribution,
             phaseDistribution,
-            sponsorDistribution,
-            yearDistribution,
-            recentYears,
             summary: {
                 activeStudies: analysisResults.filter(r => 
                     (r.status || '').toLowerCase().includes('recruiting') || 
                     (r.status || '').toLowerCase().includes('active')
                 ).length,
                 recentStudies: analysisResults.filter(r => 
-                    (r.year || 0) >= currentYear - 2
+                    (r.year || 0) >= new Date().getFullYear() - 2
                 ).length,
                 approvedDrugs: analysisResults.filter(r => 
                     (r.phase || '').toLowerCase().includes('approved') ||
@@ -984,24 +830,12 @@ const PharmaceuticalIntelligenceSystem = () => {
         };
     }, [enhancedFilteredResults]);
 
-    // Bookmark Management
-    const toggleBookmark = useCallback((resultId) => {
-        setBookmarkedResults(prev => {
-            const isBookmarked = prev.includes(resultId);
-            if (isBookmarked) {
-                return prev.filter(id => id !== resultId);
-            } else {
-                return [...prev, resultId];
-            }
-        });
-    }, []);
-
-    // Enhanced Export Functionality
+    // Export functionality
     const exportResults = useCallback(() => {
         const timestamp = new Date().toISOString().split('T')[0];
         const csvHeaders = [
             'Database', 'Title', 'ID', 'Status', 'Phase', 'Sponsor', 'Year', 
-            'Enrollment', 'Conditions', 'Link', 'Search_Time_MS'
+            'Enrollment', 'Conditions', 'Link'
         ];
         
         const csvData = enhancedFilteredResults.map(item => [
@@ -1014,8 +848,7 @@ const PharmaceuticalIntelligenceSystem = () => {
             item.year || 'N/A',
             item.enrollment || 'N/A',
             Array.isArray(item.conditions) ? item.conditions.slice(0,3).join('; ') : (item.condition_summary || 'N/A'),
-            item.link || item.url || 'N/A',
-            item._searchTime || 'N/A'
+            item.link || item.url || 'N/A'
         ]);
 
         const csvContent = [csvHeaders, ...csvData]
@@ -1042,8 +875,6 @@ const PharmaceuticalIntelligenceSystem = () => {
             return { ...baseStyle, ...styles.statusActive };
         } else if (statusLower.includes('completed')) {
             return { ...baseStyle, ...styles.statusCompleted };
-        } else if (statusLower.includes('not yet recruiting')) {
-            return { ...baseStyle, ...styles.statusRecruiting };
         } else if (statusLower.includes('approved')) {
             return { ...baseStyle, ...styles.statusApproved };
         } else {
@@ -1051,210 +882,132 @@ const PharmaceuticalIntelligenceSystem = () => {
         }
     };
 
-    // Database Selection Component
-    const renderDatabaseSelection = () => (
-        <div style={{ marginBottom: '30px' }}>
-            <h3 style={styles.sectionTitle}>Select Databases</h3>
-            <div style={styles.databaseGrid}>
-                {databases.map((db) => (
-                    <div
-                        key={db.id}
-                        style={selectedDatabases.includes(db.id) ? styles.databaseCardSelected : styles.databaseCard}
-                        onClick={() => {
-                            setSelectedDatabases(prev => 
-                                prev.includes(db.id)
-                                    ? prev.filter(id => id !== db.id)
-                                    : [...prev, db.id]
-                            );
-                        }}
-                        onMouseEnter={(e) => {
-                            if (!selectedDatabases.includes(db.id)) {
-                                e.target.style.borderColor = '#a0aec0';
-                                e.target.style.transform = 'translateY(-2px)';
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!selectedDatabases.includes(db.id)) {
-                                e.target.style.borderColor = '#e2e8f0';
-                                e.target.style.transform = 'translateY(0)';
-                            }
-                        }}
-                    >
-                        <span style={styles.databaseIcon}>{db.icon}</span>
-                        <div style={styles.databaseInfo}>
-                            <div style={styles.databaseName}>{db.name}</div>
-                            <div style={styles.databaseDesc}>{db.description}</div>
-                            <div style={styles.databaseCategory}>{db.category}</div>
-                        </div>
-                        <div style={selectedDatabases.includes(db.id) ? styles.checkboxSelected : styles.checkbox}>
-                            {selectedDatabases.includes(db.id) && <CheckCircle size={16} />}
-                        </div>
-                    </div>
-                ))}
-            </div>
+    // Search Section Component (Always visible at top)
+    const renderSearchSection = () => (
+        <div style={styles.searchSection}>
+            <h2 style={styles.searchTitle}>
+                <Search size={20} />
+                Search Pharmaceutical Intelligence
+            </h2>
             
-            <div style={styles.buttonGroup}>
+            <div style={styles.searchInputContainer}>
+                <div style={styles.searchInputWrapper}>
+                    <Search style={styles.searchIcon} size={20} />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Enter your research query (e.g., 'imatinib cancer phase 2', 'Alzheimer disease trials', 'BRCA1 mutations', 'EGFR inhibitors')"
+                        style={styles.searchInput}
+                        onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
+                        onFocus={(e) => e.target.style.borderColor = '#4299e1'}
+                        onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                    />
+                </div>
                 <button
-                    onClick={() => setSelectedDatabases(databases.map(db => db.id))}
-                    style={styles.primaryButton}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#3182ce'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = '#4299e1'}
+                    onClick={executeSearch}
+                    disabled={loading || !searchQuery.trim() || selectedDatabases.length === 0}
+                    style={{
+                        ...styles.primaryButton,
+                        opacity: (loading || !searchQuery.trim() || selectedDatabases.length === 0) ? 0.6 : 1,
+                        cursor: (loading || !searchQuery.trim() || selectedDatabases.length === 0) ? 'not-allowed' : 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (!e.target.disabled) {
+                            e.target.style.backgroundColor = '#3182ce';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (!e.target.disabled) {
+                            e.target.style.backgroundColor = '#4299e1';
+                        }
+                    }}
                 >
-                    Select All
+                    {loading ? (
+                        <>
+                            <Loader2 className="animate-spin" size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                            <span>Searching {selectedDatabases.length} databases...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Search size={20} />
+                            <span>Search Intelligence Databases</span>
+                        </>
+                    )}
                 </button>
-                <button
-                    onClick={() => setSelectedDatabases([])}
-                    style={styles.secondaryButton}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = '#718096'}
-                >
-                    Clear All
-                </button>
-                <div style={{ flex: 1 }}></div>
-                <span style={styles.badge}>
-                    {selectedDatabases.length} of {databases.length} selected
-                </span>
             </div>
+
+            {/* Database Selection */}
+            <div style={styles.databaseSection}>
+                <h3 style={{ ...styles.sectionTitle, fontSize: '1rem', marginBottom: '12px' }}>
+                    <Database size={16} />
+                    Selected Databases ({selectedDatabases.length}/6)
+                </h3>
+                <div style={styles.databaseGrid}>
+                    {databases.map((db) => (
+                        <div
+                            key={db.id}
+                            style={selectedDatabases.includes(db.id) ? styles.databaseCardSelected : styles.databaseCard}
+                            onClick={() => {
+                                setSelectedDatabases(prev => 
+                                    prev.includes(db.id)
+                                        ? prev.filter(id => id !== db.id)
+                                        : [...prev, db.id]
+                                );
+                            }}
+                        >
+                            <div style={{
+                                ...styles.priorityBadge,
+                                ...(db.priority === 'high' ? styles.highPriority : styles.mediumPriority)
+                            }}>
+                                {db.priority}
+                            </div>
+                            <span style={{ fontSize: '1.5rem' }}>{db.icon}</span>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                                    {db.name}
+                                </div>
+                                <div style={{ fontSize: '0.875rem', color: '#718096' }}>
+                                    {db.description}
+                                </div>
+                            </div>
+                            <div style={selectedDatabases.includes(db.id) ? 
+                                { width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#4299e1', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' } :
+                                { width: '20px', height: '20px', borderRadius: '4px', border: '2px solid #e2e8f0' }
+                            }>
+                                {selectedDatabases.includes(db.id) && <CheckCircle size={16} />}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Error Display */}
+            {error && (
+                <div style={styles.errorContainer}>
+                    <AlertCircle size={20} />
+                    <span style={styles.errorText}>{error}</span>
+                </div>
+            )}
         </div>
     );
 
-    // Enhanced Analytics Display
-    const renderEnhancedAnalytics = () => {
-        if (results.length === 0) return null;
-
-        return (
-            <div style={styles.analyticsContainer}>
-                <h3 style={styles.analyticsTitle}>
-                    <BarChart3 size={20} />
-                    Comprehensive Search Analytics
-                </h3>
-                
-                <div style={styles.analyticsGrid}>
-                    {/* Database Distribution */}
-                    <div style={styles.analyticsSection}>
-                        <h4 style={styles.analyticsSectionTitle}>Database Distribution</h4>
-                        <div>
-                            {enhancedAnalytics.databaseDistribution.map((db) => (
-                                <div key={db.name} style={styles.analyticsItem}>
-                                    <div style={styles.analyticsLabel}>
-                                        <span>{db.icon}</span>
-                                        <span>{db.name}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={styles.analyticsValue}>{db.count}</span>
-                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)' }}>
-                                            ({db.percentage}%)
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Status Distribution */}
-                    <div style={styles.analyticsSection}>
-                        <h4 style={styles.analyticsSectionTitle}>Status Distribution</h4>
-                        <div>
-                            {Object.entries(enhancedAnalytics.statusDistribution)
-                                .sort(([,a], [,b]) => b - a)
-                                .slice(0, 6)
-                                .map(([status, count]) => (
-                                <div key={status} style={styles.analyticsItem}>
-                                    <span style={styles.analyticsLabel}>{status}</span>
-                                    <span style={styles.analyticsValue}>{count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Phase Distribution */}
-                    <div style={styles.analyticsSection}>
-                        <h4 style={styles.analyticsSectionTitle}>Phase Distribution</h4>
-                        <div>
-                            {Object.entries(enhancedAnalytics.phaseDistribution)
-                                .sort(([,a], [,b]) => b - a)
-                                .map(([phase, count]) => (
-                                <div key={phase} style={styles.analyticsItem}>
-                                    <span style={styles.analyticsLabel}>{phase}</span>
-                                    <span style={styles.analyticsValue}>{count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Key Insights */}
-                    <div style={styles.analyticsSection}>
-                        <h4 style={styles.analyticsSectionTitle}>Key Insights</h4>
-                        <div>
-                            <div style={styles.analyticsItem}>
-                                <span style={styles.analyticsLabel}>
-                                    <TrendingUp size={16} />
-                                    Active Studies
-                                </span>
-                                <span style={styles.analyticsValue}>{enhancedAnalytics.summary.activeStudies}</span>
-                            </div>
-                            <div style={styles.analyticsItem}>
-                                <span style={styles.analyticsLabel}>
-                                    <Clock size={16} />
-                                    Recent (2023+)
-                                </span>
-                                <span style={styles.analyticsValue}>{enhancedAnalytics.summary.recentStudies}</span>
-                            </div>
-                            <div style={styles.analyticsItem}>
-                                <span style={styles.analyticsLabel}>
-                                    <CheckCircle size={16} />
-                                    Approved
-                                </span>
-                                <span style={styles.analyticsValue}>{enhancedAnalytics.summary.approvedDrugs}</span>
-                            </div>
-                        </div>
-                    </div>
+    // Results Table Component (for Results tab)
+    const renderResultsTable = () => {
+        if (enhancedFilteredResults.length === 0) {
+            return (
+                <div style={styles.emptyState}>
+                    <Table size={48} style={styles.emptyStateIcon} />
+                    <p>No results to display. Please perform a search first to see results here.</p>
                 </div>
-
-                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
-                        Total Results: {enhancedAnalytics.total}
-                    </span>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                        <button
-                            onClick={() => {
-                                console.log('Enhanced Analytics Data:', enhancedAnalytics);
-                                alert('Analytics data logged to console for further analysis');
-                            }}
-                            style={{
-                                ...styles.primaryButton,
-                                backgroundColor: '#6366f1',
-                                color: '#ffffff'
-                            }}
-                        >
-                            <BarChart3 size={16} />
-                            <span>View Details</span>
-                        </button>
-                        <button
-                            onClick={exportResults}
-                            style={{
-                                ...styles.primaryButton,
-                                backgroundColor: '#38a169',
-                                color: '#ffffff'
-                            }}
-                        >
-                            <Download size={16} />
-                            <span>Export CSV</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    // Enhanced Results Table
-    const renderEnhancedResultsTable = () => {
-        if (enhancedFilteredResults.length === 0) return null;
+            );
+        }
 
         return (
             <div style={styles.resultsContainer}>
                 <div style={styles.resultsHeader}>
                     <h3 style={styles.resultsTitle}>
+                        <Table size={20} />
                         Search Results ({enhancedFilteredResults.length})
                     </h3>
                     <div style={styles.resultsControls}>
@@ -1280,13 +1033,14 @@ const PharmaceuticalIntelligenceSystem = () => {
                         <button
                             onClick={exportResults}
                             style={{
-                                ...styles.actionButton,
+                                ...styles.primaryButton,
                                 backgroundColor: '#38a169',
-                                color: '#ffffff'
+                                padding: '10px 16px',
+                                fontSize: '0.875rem'
                             }}
                         >
                             <Download size={16} />
-                            Export
+                            Export CSV
                         </button>
                     </div>
                 </div>
@@ -1299,7 +1053,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                                 <th style={styles.tableHeaderCell}>Study Details</th>
                                 <th style={styles.tableHeaderCell}>Status & Phase</th>
                                 <th style={styles.tableHeaderCell}>Sponsor</th>
-                                <th style={styles.tableHeaderCell}>Actions</th>
+                                <th style={styles.tableHeaderCell}>Link</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1328,17 +1082,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                                     <td style={styles.tableCell}>
                                         <div>
                                             <div style={{ fontSize: '0.875rem', color: '#2d3748', marginBottom: '4px', fontWeight: '500' }}>
-                                                <a 
-                                                    href={result.link || result.url} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    style={{ color: '#4299e1', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                    onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
-                                                    onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
-                                                >
-                                                    {result.title || result.brief_title || 'View Study'}
-                                                    <ExternalLink size={12} />
-                                                </a>
+                                                {result.title || result.brief_title || 'No title'}
                                             </div>
                                             <div style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '2px' }}>
                                                 ID: {result.id || result.nct_id || 'N/A'}
@@ -1346,11 +1090,6 @@ const PharmaceuticalIntelligenceSystem = () => {
                                             {result.condition_summary && (
                                                 <div style={{ fontSize: '0.75rem', color: '#4a5568' }}>
                                                     Conditions: {result.condition_summary}
-                                                </div>
-                                            )}
-                                            {result.intervention_summary && (
-                                                <div style={{ fontSize: '0.75rem', color: '#4a5568' }}>
-                                                    Interventions: {result.intervention_summary}
                                                 </div>
                                             )}
                                         </div>
@@ -1381,34 +1120,22 @@ const PharmaceuticalIntelligenceSystem = () => {
                                         )}
                                     </td>
                                     <td style={styles.tableCell}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <button
-                                                onClick={() => toggleBookmark(result._id)}
-                                                style={bookmarkedResults.includes(result._id) ? styles.bookmarkButtonActive : styles.bookmarkButton}
-                                                title={bookmarkedResults.includes(result._id) ? 'Remove bookmark' : 'Add bookmark'}
-                                            >
-                                                {bookmarkedResults.includes(result._id) ? 
-                                                    <Star size={16} fill="currentColor" /> : 
-                                                    <StarOff size={16} />
-                                                }
-                                            </button>
-                                            <button
-                                                onClick={() => setExpandedResult(
-                                                    expandedResult === result._id ? null : result._id
-                                                )}
-                                                style={{
-                                                    ...styles.actionButton,
-                                                    backgroundColor: '#4299e1',
-                                                    color: '#ffffff'
-                                                }}
-                                                title="View details"
-                                            >
-                                                {expandedResult === result._id ? 
-                                                    <ChevronUp size={16} /> : 
-                                                    <ChevronDown size={16} />
-                                                }
-                                            </button>
-                                        </div>
+                                        <a 
+                                            href={result.link || result.url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            style={{ 
+                                                color: '#4299e1', 
+                                                textDecoration: 'none',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                fontSize: '0.875rem'
+                                            }}
+                                        >
+                                            View Study
+                                            <ExternalLink size={12} />
+                                        </a>
                                     </td>
                                 </tr>
                             ))}
@@ -1416,7 +1143,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                     </table>
                 </div>
                 
-                {/* Pagination info */}
+                {/* Summary */}
                 <div style={{ 
                     padding: '16px', 
                     borderTop: '1px solid #e2e8f0', 
@@ -1440,6 +1167,101 @@ const PharmaceuticalIntelligenceSystem = () => {
         );
     };
 
+    // Analytics Component
+    const renderAnalytics = () => {
+        if (results.length === 0) {
+            return (
+                <div style={styles.emptyState}>
+                    <BarChart3 size={48} style={styles.emptyStateIcon} />
+                    <p>No data available. Please perform a search first to see comprehensive analytics.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '16px',
+                padding: '24px',
+                color: '#ffffff',
+                marginBottom: '24px'
+            }}>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart3 size={24} />
+                    Search Analytics
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                    {/* Database Distribution */}
+                    <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', padding: '16px', borderRadius: '8px' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: '500', marginBottom: '12px' }}>Database Distribution</h4>
+                        <div>
+                            {enhancedAnalytics.databaseDistribution.map((db) => (
+                                <div key={db.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}>
+                                        <span>{db.icon}</span>
+                                        <span>{db.name}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{db.count}</span>
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)' }}>
+                                            ({db.percentage}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Key Metrics */}
+                    <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', padding: '16px', borderRadius: '8px' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: '500', marginBottom: '12px' }}>Key Insights</h4>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <TrendingUp size={16} />
+                                    Active Studies
+                                </span>
+                                <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{enhancedAnalytics.summary.activeStudies}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Clock size={16} />
+                                    Recent (2023+)
+                                </span>
+                                <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{enhancedAnalytics.summary.recentStudies}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                                <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <CheckCircle size={16} />
+                                    Approved
+                                </span>
+                                <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{enhancedAnalytics.summary.approvedDrugs}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
+                        Total Results: {enhancedAnalytics.total}
+                    </span>
+                    <button
+                        onClick={exportResults}
+                        style={{
+                            ...styles.primaryButton,
+                            backgroundColor: '#38a169',
+                            color: '#ffffff'
+                        }}
+                    >
+                        <Download size={16} />
+                        <span>Export All Results</span>
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div style={styles.container}>
             {/* Header */}
@@ -1448,228 +1270,128 @@ const PharmaceuticalIntelligenceSystem = () => {
                     GRID - Global Research Intelligence Database
                 </h1>
                 <p style={styles.subtitle}>
-                    Advanced multi-database pharmaceutical intelligence platform • Now returning 100s-1000s of comprehensive results
+                    Advanced pharmaceutical intelligence platform • 6 specialized databases • Comprehensive drug discovery insights
                 </p>
             </div>
+
+            {/* Search Section - Always at Top */}
+            {renderSearchSection()}
 
             {/* Navigation Tabs */}
             <div style={styles.tabContainer}>
                 <div style={styles.tabNav}>
-                    {['search', 'analytics', 'bookmarks'].map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            style={activeTab === tab ? styles.activeTab : styles.tab}
-                        >
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        </button>
-                    ))}
+                    <button
+                        onClick={() => setActiveTab('search')}
+                        style={activeTab === 'search' ? styles.activeTab : styles.tab}
+                    >
+                        <Search size={16} />
+                        Search
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('results')}
+                        style={activeTab === 'results' ? styles.activeTab : styles.tab}
+                    >
+                        <Table size={16} />
+                        Results ({results.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('analytics')}
+                        style={activeTab === 'analytics' ? styles.activeTab : styles.tab}
+                    >
+                        <BarChart3 size={16} />
+                        Analytics
+                    </button>
                 </div>
             </div>
 
-            {/* Search Tab */}
+            {/* Tab Content */}
             {activeTab === 'search' && (
-                <>
-                    {renderDatabaseSelection()}
+                <div>
+                    {/* Quick Analytics Summary */}
+                    {results.length > 0 && renderAnalytics()}
                     
-                    {/* Search Interface */}
-                    <div style={styles.searchContainer}>
-                        <div style={styles.searchInputContainer}>
-                            <div style={styles.searchInputWrapper}>
-                                <Search style={styles.searchIcon} size={20} />
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Enter your research query (e.g., 'imatinib cancer phase 2', 'Alzheimer disease trials', 'BRCA1 mutations')"
-                                    style={styles.searchInput}
-                                    onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
-                                    onFocus={(e) => e.target.style.borderColor = '#4299e1'}
-                                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-                                />
-                            </div>
-                            <button
-                                onClick={executeSearch}
-                                disabled={loading || !searchQuery.trim() || selectedDatabases.length === 0}
-                                style={{
-                                    ...styles.primaryButton,
-                                    opacity: (loading || !searchQuery.trim() || selectedDatabases.length === 0) ? 0.6 : 1,
-                                    cursor: (loading || !searchQuery.trim() || selectedDatabases.length === 0) ? 'not-allowed' : 'pointer'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!e.target.disabled) {
-                                        e.target.style.backgroundColor = '#3182ce';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!e.target.disabled) {
-                                        e.target.style.backgroundColor = '#4299e1';
-                                    }
-                                }}
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="animate-spin" size={20} style={{ animation: 'spin 1s linear infinite' }} />
-                                        <span>Searching {selectedDatabases.length} databases...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Search size={20} />
-                                        <span>Execute Comprehensive Search</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-
-                        {/* Search Controls */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.875rem', flexWrap: 'wrap' }}>
-                            <button
-                                onClick={() => setShowLogs(!showLogs)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#718096',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {showLogs ? <EyeOff size={16} /> : <Eye size={16} />}
-                                <span>{showLogs ? 'Hide' : 'Show'} Search Logs</span>
-                            </button>
-                            {searchLogs.length > 0 && (
-                                <span style={{ color: '#4a5568' }}>
-                                    Last search: {searchLogs[0]?.resultsCount || 0} results in {searchLogs[0]?.duration || 0}ms
-                                </span>
-                            )}
+                    {/* Sample Queries */}
+                    <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '12px', color: '#2d3748' }}>
+                            💡 Sample Queries to Try
+                        </h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                            {[
+                                'imatinib cancer trials',
+                                'EGFR inhibitors phase 3',
+                                'Alzheimer disease targets',
+                                'BRCA1 mutations clinical',
+                                'pembrolizumab melanoma',
+                                'JAK2 inhibitors'
+                            ].map((sampleQuery) => (
+                                <button
+                                    key={sampleQuery}
+                                    onClick={() => {
+                                        setSearchQuery(sampleQuery);
+                                        executeSearch();
+                                    }}
+                                    style={{
+                                        padding: '8px 12px',
+                                        backgroundColor: '#ffffff',
+                                        border: '1px solid #cbd5e0',
+                                        borderRadius: '6px',
+                                        fontSize: '0.875rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.backgroundColor = '#edf2f7';
+                                        e.target.style.borderColor = '#4299e1';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.backgroundColor = '#ffffff';
+                                        e.target.style.borderColor = '#cbd5e0';
+                                    }}
+                                >
+                                    {sampleQuery}
+                                </button>
+                            ))}
                         </div>
                     </div>
-
-                    {/* Error Display */}
-                    {error && (
-                        <div style={styles.errorContainer}>
-                            <AlertCircle size={20} />
-                            <span style={styles.errorText}>{error}</span>
-                        </div>
-                    )}
-
-                    {/* Logs Display */}
-                    {showLogs && searchLogs.length > 0 && (
-                        <div style={styles.logContainer}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#2d3748' }}>Search History & Performance Logs</h3>
-                                <button
-                                    onClick={() => setShowLogs(false)}
-                                    style={{ background: 'none', border: 'none', color: '#a0aec0', cursor: 'pointer' }}
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            
-                            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                {searchLogs.slice(0, 5).map((log) => (
-                                    <div key={log.id} style={styles.logEntry}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {log.status === 'running' && <Loader2 style={{ color: '#4299e1', animation: 'spin 1s linear infinite' }} size={16} />}
-                                                {log.status === 'completed' && <CheckCircle style={{ color: '#38a169' }} size={16} />}
-                                                {log.status === 'failed' && <AlertCircle style={{ color: '#e53e3e' }} size={16} />}
-                                                <span style={{ fontWeight: '500' }}>{log.query}</span>
-                                            </div>
-                                            <span style={{ fontSize: '0.75rem', color: '#a0aec0' }}>
-                                                {new Date(log.timestamp).toLocaleTimeString()}
-                                            </span>
-                                        </div>
-                                        
-                                        {log.summary && (
-                                            <div style={{ fontSize: '0.75rem', color: '#4a5568' }}>
-                                                <div>📊 {log.summary.totalResults} results from {log.summary.successful}/{log.summary.successful + log.summary.failed} databases</div>
-                                                <div>⏱️ Average: {log.summary.avgSearchTime}ms | Fastest: {log.summary.fastestDb} | Slowest: {log.summary.slowestDb}</div>
-                                            </div>
-                                        )}
-                                        
-                                        {log.error && (
-                                            <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#e53e3e' }}>
-                                                Error: {log.error}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Analytics */}
-                    {renderEnhancedAnalytics()}
-
-                    {/* Results Table */}
-                    {renderEnhancedResultsTable()}
-                </>
-            )}
-
-            {/* Analytics Tab */}
-            {activeTab === 'analytics' && (
-                <div>
-                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem' }}>Advanced Analytics Dashboard</h2>
-                    {renderEnhancedAnalytics()}
-                    {results.length === 0 && (
-                        <div style={styles.emptyState}>
-                            <BarChart3 size={48} style={styles.emptyStateIcon} />
-                            <p>No data available. Please perform a search first to see comprehensive analytics.</p>
-                        </div>
-                    )}
                 </div>
             )}
 
-            {/* Bookmarks Tab */}
-            {activeTab === 'bookmarks' && (
+            {activeTab === 'results' && renderResultsTable()}
+
+            {activeTab === 'analytics' && (
                 <div>
-                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem' }}>Bookmarked Results</h2>
-                    {bookmarkedResults.length === 0 ? (
-                        <div style={styles.emptyState}>
-                            <Star size={48} style={styles.emptyStateIcon} />
-                            <p>No bookmarked results yet. Star results during your searches to save them here for future reference.</p>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {results.filter(result => bookmarkedResults.includes(result._id)).map((result) => (
-                                <div key={result._id} style={{
-                                    padding: '16px',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '8px',
-                                    backgroundColor: '#ffffff'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <h3 style={{ fontSize: '1rem', fontWeight: '500', color: '#2d3748', marginBottom: '4px' }}>
-                                                <a 
-                                                    href={result.link || result.url} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    style={{ color: '#4299e1', textDecoration: 'none' }}
-                                                >
-                                                    {result.title || result.brief_title || 'View Study'}
-                                                </a>
-                                            </h3>
-                                            <p style={{ fontSize: '0.875rem', color: '#718096' }}>
-                                                {result._databaseName} • {result.status || 'Unknown Status'} • {result.phase || 'N/A'}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() => toggleBookmark(result._id)}
-                                            style={{
-                                                background: 'none',
-                                                border: 'none',
-                                                color: '#f6e05e',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <Star size={20} fill="currentColor" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem', marginBottom: '24px' }}>Advanced Analytics Dashboard</h2>
+                    {renderAnalytics()}
+                    {results.length > 0 && (
+                        <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '16px', color: '#2d3748' }}>
+                                Export Options
+                            </h3>
+                            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={exportResults}
+                                    style={{
+                                        ...styles.primaryButton,
+                                        backgroundColor: '#38a169'
+                                    }}
+                                >
+                                    <FileSpreadsheet size={16} />
+                                    Export to CSV
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        console.log('Detailed analytics:', enhancedAnalytics);
+                                        alert('Detailed analytics logged to console for further analysis');
+                                    }}
+                                    style={{
+                                        ...styles.primaryButton,
+                                        backgroundColor: '#6366f1'
+                                    }}
+                                >
+                                    <BarChart3 size={16} />
+                                    View Raw Data
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
