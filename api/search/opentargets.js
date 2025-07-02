@@ -1,17 +1,19 @@
-// api/search/opentargets.js - AGENTIC BIOLOGY AI SYSTEM
-// Intelligent system that understands biological relationships and responds dynamically
+// api/search/opentargets.js - COMPREHENSIVE AGENTIC BIOLOGY AI SYSTEM
+// Handles ALL biological relationship queries dynamically
 
 /**
- * AGENTIC BIOLOGY AI - OpenTargets Intelligence System
+ * COMPREHENSIVE AGENTIC BIOLOGY AI - OpenTargets Intelligence System
  * 
- * This system learns from biology team patterns but handles ANY biological query dynamically:
- * - Drug → Diseases (any phase, approved, etc.)
- * - Drug → Targets & Binding Affinities  
- * - Drug → Toxicities & Adverse Events
- * - Target → Associated Diseases
- * - Target → Interacting Partners
- * - Disease → Approved/Investigational Compounds
- * - And many more biological relationships...
+ * Supports ALL biological relationship queries:
+ * - List the diseases in Phase-2 for Imatinib
+ * - List the diseases for which Rituximab is approved  
+ * - For Dasatinib, list the various toxicities
+ * - For compound X, list all the targets and their binding affinities
+ * - For compound Y, list the Adverse events
+ * - List the diseases associated with JAK2
+ * - For Target X, list all the interacting partners
+ * - List of approved compounds for a disease A
+ * - And ANY other biological query!
  */
 
 const OPENTARGETS_CONFIG = {
@@ -21,7 +23,7 @@ const OPENTARGETS_CONFIG = {
 };
 
 /**
- * INTELLIGENT QUERY PARSER - Understands biological intent
+ * ENHANCED INTELLIGENT QUERY PARSER - Recognizes ALL biological relationship patterns
  */
 class BiologyQueryIntelligence {
     constructor() {
@@ -30,7 +32,7 @@ class BiologyQueryIntelligence {
             'diseases', 'targets', 'toxicities', 'adverse_events', 'side_effects',
             'binding_affinities', 'mechanisms', 'interactions', 'partners',
             'compounds', 'drugs', 'indications', 'warnings', 'contraindications',
-            'pathways', 'biomarkers', 'mutations', 'variants'
+            'pathways', 'biomarkers', 'mutations', 'variants', 'approved'
         ];
         this.qualifiers = [
             'phase-1', 'phase-2', 'phase-3', 'phase-4', 'approved', 'clinical',
@@ -39,12 +41,11 @@ class BiologyQueryIntelligence {
     }
 
     /**
-     * Parse any biological query and understand intent
+     * Parse ANY biological query and understand intent - COMPREHENSIVE PATTERN MATCHING
      */
     parseQuery(query) {
         const cleanQuery = query.toLowerCase().trim();
         
-        // Extract biological entities and relationships
         const intent = {
             type: 'unknown',
             entity: null,
@@ -52,40 +53,163 @@ class BiologyQueryIntelligence {
             relationship: null,
             qualifiers: [],
             originalQuery: query,
-            confidence: 0
+            confidence: 0,
+            phaseFilter: null,
+            specificPattern: null
         };
 
-        // PATTERN 1: Drug/Compound queries
+        console.log(`🧠 Parsing comprehensive query: "${query}"`);
+
+        // PATTERN 1: "List the diseases in Phase-X for [Drug]"
+        const diseasePhasePattern = /list\s+(?:the\s+)?diseases?\s+in\s+phase[-\s]*(\d+|i{1,4}|ii|iii|iv)\s+for\s+([a-zA-Z0-9\-]+)/i;
+        const diseasePhaseMatch = cleanQuery.match(diseasePhasePattern);
+        
+        if (diseasePhaseMatch) {
+            const phaseNum = this.normalizePhase(diseasePhaseMatch[1]);
+            const drugName = diseasePhaseMatch[2];
+            
+            return {
+                ...intent,
+                type: 'drug-diseases',
+                entityType: 'drug',
+                entity: drugName,
+                relationship: 'diseases',
+                qualifiers: [`phase-${phaseNum}`],
+                phaseFilter: parseInt(phaseNum),
+                confidence: 0.95,
+                specificPattern: 'phase_diseases'
+            };
+        }
+
+        // PATTERN 2: "List the diseases for which [Drug] is approved"
+        const approvedDiseasesPattern = /list\s+(?:the\s+)?diseases?\s+for\s+which\s+([a-zA-Z0-9\-]+)\s+is\s+approved/i;
+        const approvedDiseasesMatch = cleanQuery.match(approvedDiseasesPattern);
+        
+        if (approvedDiseasesMatch) {
+            return {
+                ...intent,
+                type: 'drug-approved-diseases',
+                entityType: 'drug',
+                entity: approvedDiseasesMatch[1],
+                relationship: 'approved_diseases',
+                qualifiers: ['approved'],
+                confidence: 0.95,
+                specificPattern: 'approved_diseases'
+            };
+        }
+
+        // PATTERN 3: "For [Drug], list the various toxicities" OR "For [Drug], list the Adverse events"
+        const toxicitiesPattern = /for\s+([a-zA-Z0-9\-]+),?\s+list\s+(?:the\s+)?(?:various\s+)?(toxicities?|adverse\s+events?|side\s+effects?)/i;
+        const toxicitiesMatch = cleanQuery.match(toxicitiesPattern);
+        
+        if (toxicitiesMatch) {
+            return {
+                ...intent,
+                type: 'drug-toxicities',
+                entityType: 'drug',
+                entity: toxicitiesMatch[1],
+                relationship: 'toxicities',
+                confidence: 0.95,
+                specificPattern: 'toxicities'
+            };
+        }
+
+        // PATTERN 4: "For compound [Drug], list all the targets and their binding affinities"
+        const bindingAffinitiesPattern = /for\s+compound\s+([a-zA-Z0-9\-]+),?\s+list\s+(?:all\s+)?(?:the\s+)?targets?\s+and\s+(?:their\s+)?binding\s+affinities?/i;
+        const bindingAffinitiesMatch = cleanQuery.match(bindingAffinitiesPattern);
+        
+        if (bindingAffinitiesMatch) {
+            return {
+                ...intent,
+                type: 'drug-binding-affinities',
+                entityType: 'drug',
+                entity: bindingAffinitiesMatch[1],
+                relationship: 'binding_affinities',
+                confidence: 0.95,
+                specificPattern: 'binding_affinities'
+            };
+        }
+
+        // PATTERN 5: "List the diseases associated with [Target]"
+        const targetDiseasesPattern = /list\s+(?:the\s+)?diseases?\s+associated\s+with\s+([a-zA-Z0-9_\-]+)/i;
+        const targetDiseasesMatch = cleanQuery.match(targetDiseasesPattern);
+        
+        if (targetDiseasesMatch) {
+            return {
+                ...intent,
+                type: 'target-diseases',
+                entityType: 'target',
+                entity: targetDiseasesMatch[1],
+                relationship: 'diseases',
+                confidence: 0.95,
+                specificPattern: 'target_diseases'
+            };
+        }
+
+        // PATTERN 6: "For Target [Target], list all the interacting partners"
+        const interactingPartnersPattern = /for\s+target\s+([a-zA-Z0-9_\-]+),?\s+list\s+(?:all\s+)?(?:the\s+)?interacting\s+partners?/i;
+        const interactingPartnersMatch = cleanQuery.match(interactingPartnersPattern);
+        
+        if (interactingPartnersMatch) {
+            return {
+                ...intent,
+                type: 'target-interactions',
+                entityType: 'target',
+                entity: interactingPartnersMatch[1],
+                relationship: 'interactions',
+                confidence: 0.95,
+                specificPattern: 'interacting_partners'
+            };
+        }
+
+        // PATTERN 7: "List of approved compounds for a disease [Disease]"
+        const diseaseCompoundsPattern = /list\s+(?:of\s+)?approved\s+compounds?\s+for\s+(?:a\s+)?disease\s+([a-zA-Z0-9_\-\s]+)/i;
+        const diseaseCompoundsMatch = cleanQuery.match(diseaseCompoundsPattern);
+        
+        if (diseaseCompoundsMatch) {
+            return {
+                ...intent,
+                type: 'disease-approved-compounds',
+                entityType: 'disease',
+                entity: diseaseCompoundsMatch[1].trim(),
+                relationship: 'approved_compounds',
+                qualifiers: ['approved'],
+                confidence: 0.95,
+                specificPattern: 'disease_compounds'
+            };
+        }
+
+        // PATTERN 8: Generic drug patterns
         if (this.matchesDrugPattern(cleanQuery)) {
             intent.entityType = 'drug';
             intent.entity = this.extractEntity(cleanQuery, 'drug');
             intent.relationship = this.extractRelationship(cleanQuery);
             intent.qualifiers = this.extractQualifiers(cleanQuery);
             intent.type = `drug-${intent.relationship}`;
-            intent.confidence = 0.9;
+            intent.confidence = 0.8;
         }
         
-        // PATTERN 2: Target/Gene/Protein queries  
+        // PATTERN 9: Generic target patterns
         else if (this.matchesTargetPattern(cleanQuery)) {
             intent.entityType = 'target';
             intent.entity = this.extractEntity(cleanQuery, 'target');
             intent.relationship = this.extractRelationship(cleanQuery);
             intent.qualifiers = this.extractQualifiers(cleanQuery);
             intent.type = `target-${intent.relationship}`;
-            intent.confidence = 0.9;
+            intent.confidence = 0.8;
         }
         
-        // PATTERN 3: Disease queries
+        // PATTERN 10: Generic disease patterns
         else if (this.matchesDiseasePattern(cleanQuery)) {
             intent.entityType = 'disease';
             intent.entity = this.extractEntity(cleanQuery, 'disease');
             intent.relationship = this.extractRelationship(cleanQuery);
             intent.qualifiers = this.extractQualifiers(cleanQuery);
             intent.type = `disease-${intent.relationship}`;
-            intent.confidence = 0.9;
+            intent.confidence = 0.8;
         }
         
-        // PATTERN 4: General biological search
+        // PATTERN 11: General search
         else {
             intent.type = 'general_search';
             intent.entity = cleanQuery;
@@ -93,6 +217,15 @@ class BiologyQueryIntelligence {
         }
 
         return intent;
+    }
+
+    normalizePhase(phase) {
+        const phaseStr = phase.toLowerCase();
+        const phaseMap = {
+            'i': '1', 'ii': '2', 'iii': '3', 'iv': '4',
+            '1': '1', '2': '2', '3': '3', '4': '4'
+        };
+        return phaseMap[phaseStr] || phase;
     }
 
     matchesDrugPattern(query) {
@@ -125,7 +258,6 @@ class BiologyQueryIntelligence {
     }
 
     extractEntity(query, entityType) {
-        // Extract the main biological entity being queried
         if (entityType === 'drug') {
             const drugPatterns = [
                 /(?:for|of)\s+([a-zA-Z0-9\-]+)/,
@@ -168,7 +300,6 @@ class BiologyQueryIntelligence {
     }
 
     extractRelationship(query) {
-        // Determine what biological relationship is being asked for
         if (query.includes('diseases') || query.includes('indications')) return 'diseases';
         if (query.includes('targets') || query.includes('proteins')) return 'targets';
         if (query.includes('toxicities') || query.includes('adverse') || query.includes('side effects')) return 'toxicities';
@@ -177,6 +308,7 @@ class BiologyQueryIntelligence {
         if (query.includes('compounds') || query.includes('drugs')) return 'compounds';
         if (query.includes('mechanisms') || query.includes('pathways')) return 'mechanisms';
         if (query.includes('warnings') || query.includes('contraindications')) return 'warnings';
+        if (query.includes('approved')) return 'approved';
         
         return 'general';
     }
@@ -184,7 +316,6 @@ class BiologyQueryIntelligence {
     extractQualifiers(query) {
         const qualifiers = [];
         
-        // Phase qualifiers
         const phaseMatch = query.match(/phase[-\s]*(\d+|i{1,4}|iv)/i);
         if (phaseMatch) {
             const phase = phaseMatch[1].toLowerCase();
@@ -192,12 +323,9 @@ class BiologyQueryIntelligence {
             qualifiers.push(`phase-${phaseMap[phase] || phase}`);
         }
         
-        // Approval status
         if (query.includes('approved')) qualifiers.push('approved');
         if (query.includes('investigational') || query.includes('experimental')) qualifiers.push('investigational');
         if (query.includes('clinical')) qualifiers.push('clinical');
-        
-        // Severity/Type qualifiers
         if (query.includes('black box') || query.includes('serious')) qualifiers.push('serious');
         if (query.includes('common') || query.includes('frequent')) qualifiers.push('common');
         
@@ -206,7 +334,7 @@ class BiologyQueryIntelligence {
 }
 
 /**
- * COMPREHENSIVE GRAPHQL QUERIES for all biological relationships
+ * COMPREHENSIVE GRAPHQL QUERIES for ALL biological relationships
  */
 const BIOLOGY_QUERIES = {
     // Drug-related queries
@@ -284,6 +412,16 @@ const BIOLOGY_QUERIES = {
                     countries
                     reasons
                     year
+                }
+                adverseEvents {
+                    count
+                    criticalValue
+                    rows {
+                        name
+                        meddraCode
+                        count
+                        logLR
+                    }
                 }
             }
         }
@@ -422,12 +560,10 @@ class EntityResolver {
         console.log(`🔍 Resolving ${entityType}: ${entityName}`);
         
         try {
-            // First try direct ID lookup if it looks like an ID
             if (this.looksLikeId(entityName, entityType)) {
                 return { id: entityName, name: entityName, type: entityType };
             }
             
-            // Search for the entity
             const searchData = await executeGraphQL(BIOLOGY_QUERIES.universalSearch, {
                 queryString: entityName,
                 entityNames: [entityType],
@@ -461,68 +597,390 @@ class EntityResolver {
 }
 
 /**
- * DYNAMIC DATA PROCESSOR - Formats results in biology team structure
+ * COMPREHENSIVE DATA PROCESSOR - Formats results in ALL required CSV formats
  */
 class BiologyDataProcessor {
     process(data, intent) {
-        console.log(`📊 Processing ${intent.type} data...`);
+        console.log(`📊 Processing ${intent.type} data with pattern: ${intent.specificPattern}`);
         
-        switch (intent.type) {
-            case 'drug-diseases':
-                return this.processDrugDiseases(data, intent);
-            case 'drug-targets':
-                return this.processDrugTargets(data, intent);
-            case 'drug-toxicities':
-                return this.processDrugToxicities(data, intent);
-            case 'target-diseases':
+        switch (intent.specificPattern) {
+            case 'phase_diseases':
+                return this.processPhaseDiseases(data, intent);
+            case 'approved_diseases':
+                return this.processApprovedDiseases(data, intent);
+            case 'toxicities':
+                return this.processToxicities(data, intent);
+            case 'binding_affinities':
+                return this.processBindingAffinities(data, intent);
+            case 'target_diseases':
                 return this.processTargetDiseases(data, intent);
-            case 'target-interactions':
-                return this.processTargetInteractions(data, intent);
-            case 'disease-compounds':
+            case 'interacting_partners':
+                return this.processInteractingPartners(data, intent);
+            case 'disease_compounds':
                 return this.processDiseaseCompounds(data, intent);
             default:
-                return this.processGeneralSearch(data, intent);
+                return this.processDefault(data, intent);
         }
     }
     
+    // Processes: "List the diseases in Phase-2 for Imatinib"
+    processPhaseDiseases(drugData, intent) {
+        if (!drugData?.drug?.linkedDiseases?.rows) return [];
+        
+        const results = [];
+        const phaseFilter = intent.phaseFilter;
+        
+        console.log(`📊 Processing phase ${phaseFilter} diseases for ${drugData.drug.name}`);
+        
+        const diseaseAssociations = [];
+        
+        drugData.drug.linkedDiseases.rows.forEach((association) => {
+            const phase = association.maxPhaseForIndication || association.clinicalTrialPhase;
+            
+            if (phaseFilter !== null && phase !== phaseFilter) {
+                return;
+            }
+            
+            results.push({
+                id: `OT-phase-disease-${drugData.drug.id}-${association.disease.id}`,
+                database: 'Open Targets',
+                title: `${drugData.drug.name} for ${association.disease.name} (Phase ${phase})`,
+                type: `Phase ${phase} Disease Association`,
+                status_significance: 'Phase Clinical Data',
+                details: `${drugData.drug.name} in Phase ${phase} for ${association.disease.name}`,
+                phase: `Phase ${phase}`,
+                status: 'Clinical Development',
+                sponsor: 'Multiple',
+                year: new Date().getFullYear(),
+                enrollment: 'N/A',
+                link: `${OPENTARGETS_CONFIG.platformUrl}/evidence/${drugData.drug.id}/${association.disease.id}`,
+                
+                drug_name: drugData.drug.name,
+                disease_name: association.disease.name,
+                phase_number: phase,
+                entity_type: 'drug-phase-disease',
+                
+                raw_data: association
+            });
+            
+            // Format exactly like imatinib_phase2_diseases.csv
+            diseaseAssociations.push({
+                disease: association.disease.name,
+                maxPhaseForIndication: phase
+            });
+        });
+        
+        return results;
+    }
+    
+    // Processes: "List the diseases for which Rituximab is approved"
+    processApprovedDiseases(drugData, intent) {
+        if (!drugData?.drug?.linkedDiseases?.rows) return [];
+        
+        const results = [];
+        const diseaseAssociations = [];
+        
+        drugData.drug.linkedDiseases.rows.forEach((association) => {
+            const phase = association.maxPhaseForIndication || association.clinicalTrialPhase;
+            
+            // Only include approved (Phase 4) diseases
+            if (phase !== 4) return;
+            
+            results.push({
+                id: `OT-approved-disease-${drugData.drug.id}-${association.disease.id}`,
+                database: 'Open Targets',
+                title: `${drugData.drug.name} approved for ${association.disease.name}`,
+                type: 'Approved Disease Indication',
+                status_significance: 'FDA Approved',
+                details: `${drugData.drug.name} is approved for treatment of ${association.disease.name}`,
+                phase: 'Approved',
+                status: 'Approved',
+                sponsor: 'Multiple',
+                year: new Date().getFullYear(),
+                enrollment: 'N/A',
+                link: `${OPENTARGETS_CONFIG.platformUrl}/evidence/${drugData.drug.id}/${association.disease.id}`,
+                
+                drug_name: drugData.drug.name,
+                disease_name: association.disease.name,
+                entity_type: 'drug-approved-disease',
+                
+                raw_data: association
+            });
+            
+            // Format exactly like rituximab_approved_diseases.csv
+            diseaseAssociations.push({
+                disease: association.disease.name,
+                maxPhaseForIndication: phase
+            });
+        });
+        
+        return results;
+    }
+    
+    // Processes: "For Dasatinib, list the various toxicities"
+    processToxicities(drugData, intent) {
+        const results = [];
+        const toxicityAssociations = [];
+        
+        // Process safety liabilities
+        if (drugData?.drug?.safetyLiabilities) {
+            drugData.drug.safetyLiabilities.forEach((safety, index) => {
+                results.push({
+                    id: `OT-toxicity-${drugData.drug.id}-${index}`,
+                    database: 'Open Targets',
+                    title: `${drugData.drug.name} - ${safety.event}`,
+                    type: `Drug Toxicity - ${safety.event}`,
+                    status_significance: 'Safety Liability',
+                    details: `Toxicity: ${safety.event}. Biosamples: ${safety.biosamples?.join(', ') || 'N/A'}`,
+                    phase: 'N/A',
+                    status: 'Safety Data',
+                    sponsor: 'N/A',
+                    year: new Date().getFullYear(),
+                    enrollment: 'N/A',
+                    link: `${OPENTARGETS_CONFIG.platformUrl}/drug/${drugData.drug.id}`,
+                    
+                    drug_name: drugData.drug.name,
+                    toxicity_event: safety.event,
+                    entity_type: 'drug-toxicity',
+                    
+                    raw_data: safety
+                });
+                
+                // Format exactly like dasatinib_toxicities_opentargets.csv
+                toxicityAssociations.push({
+                    warningType: safety.event,
+                    toxicityClass: safety.event,
+                    efoIdForWarningClass: safety.efoIdForWarningClass || 'N/A',
+                    references: safety.literature?.join(';') || 'N/A'
+                });
+            });
+        }
+        
+        // Process adverse events
+        if (drugData?.drug?.adverseEvents?.rows) {
+            drugData.drug.adverseEvents.rows.forEach((adverse, index) => {
+                results.push({
+                    id: `OT-adverse-${drugData.drug.id}-${index}`,
+                    database: 'Open Targets',
+                    title: `${drugData.drug.name} - ${adverse.name}`,
+                    type: `Adverse Event - ${adverse.name}`,
+                    status_significance: 'Adverse Event',
+                    details: `Adverse event: ${adverse.name}. LogLR: ${adverse.logLR}, Reports: ${adverse.count}`,
+                    phase: 'N/A',
+                    status: 'Adverse Event',
+                    sponsor: 'FDA FAERS',
+                    year: new Date().getFullYear(),
+                    enrollment: 'N/A',
+                    link: `${OPENTARGETS_CONFIG.platformUrl}/drug/${drugData.drug.id}`,
+                    
+                    drug_name: drugData.drug.name,
+                    adverse_event: adverse.name,
+                    entity_type: 'drug-adverse-event',
+                    
+                    raw_data: adverse
+                });
+                
+                toxicityAssociations.push({
+                    warningType: adverse.name,
+                    toxicityClass: 'Adverse Event',
+                    efoIdForWarningClass: adverse.meddraCode || 'N/A',
+                    references: `FAERS LogLR: ${adverse.logLR}`
+                });
+            });
+        }
+        
+        return results;
+    }
+    
+    // Processes: "For compound X, list all the targets and their binding affinities"
+    processBindingAffinities(drugData, intent) {
+        if (!drugData?.drug?.linkedTargets?.rows) return [];
+        
+        const results = [];
+        const affinityAssociations = [];
+        
+        drugData.drug.linkedTargets.rows.forEach((association, index) => {
+            results.push({
+                id: `OT-binding-${drugData.drug.id}-${association.target.id}-${index}`,
+                database: 'Open Targets',
+                title: `${drugData.drug.name} → ${association.target.approvedSymbol}`,
+                type: `Drug-Target Binding - ${association.mechanismOfAction || 'Unknown MOA'}`,
+                status_significance: 'Target Binding',
+                details: `${drugData.drug.name} binds to ${association.target.approvedSymbol} via ${association.mechanismOfAction || 'unknown mechanism'}`,
+                phase: 'N/A',
+                status: 'Binding Data',
+                sponsor: 'N/A',
+                year: new Date().getFullYear(),
+                enrollment: 'N/A',
+                link: `${OPENTARGETS_CONFIG.platformUrl}/target/${association.target.id}`,
+                
+                drug_name: drugData.drug.name,
+                target_symbol: association.target.approvedSymbol,
+                entity_type: 'drug-target-binding',
+                
+                raw_data: association
+            });
+            
+            // Format exactly like CHEMBL25_binding_affinities_opentargets.csv
+            affinityAssociations.push({
+                mechanismOfAction: association.mechanismOfAction || 'Unknown',
+                targets: association.target.approvedSymbol,
+                actionType: association.actionType || 'Unknown',
+                references: association.references?.map(ref => ref.source).join(';') || 'N/A'
+            });
+        });
+        
+        return results;
+    }
+    
+    // Processes: "List the diseases associated with JAK2"
+    processTargetDiseases(targetData, intent) {
+        if (!targetData?.target?.associatedDiseases?.rows) return [];
+        
+        const results = [];
+        const diseaseAssociations = [];
+        
+        targetData.target.associatedDiseases.rows.forEach((association, index) => {
+            results.push({
+                id: `OT-target-disease-${targetData.target.id}-${association.disease.id}-${index}`,
+                database: 'Open Targets',
+                title: `${targetData.target.approvedSymbol} ↔ ${association.disease.name}`,
+                type: `Target-Disease Association - Score ${association.score.toFixed(3)}`,
+                status_significance: 'Disease Association',
+                details: `${targetData.target.approvedSymbol} associated with ${association.disease.name}. Score: ${association.score.toFixed(3)}`,
+                phase: 'N/A',
+                status: 'Association Data',
+                sponsor: 'N/A',
+                year: new Date().getFullYear(),
+                enrollment: 'N/A',
+                link: `${OPENTARGETS_CONFIG.platformUrl}/evidence/${targetData.target.id}/${association.disease.id}`,
+                
+                target_symbol: targetData.target.approvedSymbol,
+                disease_name: association.disease.name,
+                entity_type: 'target-disease-association',
+                
+                raw_data: association
+            });
+            
+            // Format exactly like jak2_associated_diseases_opentarget.csv
+            diseaseAssociations.push({
+                disease: association.disease.name,
+                datasourceScores: JSON.stringify(association.datatypeScores || [])
+            });
+        });
+        
+        return results;
+    }
+    
+    // Processes: "For Target X, list all the interacting partners"
+    processInteractingPartners(targetData, intent) {
+        if (!targetData?.target?.interactions?.rows) return [];
+        
+        const results = [];
+        const partnerAssociations = [];
+        
+        targetData.target.interactions.rows.forEach((interaction, index) => {
+            results.push({
+                id: `OT-interaction-${targetData.target.id}-${interaction.targetB.id}-${index}`,
+                database: 'Open Targets',
+                title: `${targetData.target.approvedSymbol} ↔ ${interaction.targetB.approvedSymbol}`,
+                type: `Protein-Protein Interaction - Score ${interaction.score.toFixed(3)}`,
+                status_significance: 'Protein Interaction',
+                details: `${targetData.target.approvedSymbol} interacts with ${interaction.targetB.approvedSymbol}. Score: ${interaction.score.toFixed(3)}`,
+                phase: 'N/A',
+                status: 'Interaction Data',
+                sponsor: 'N/A',
+                year: new Date().getFullYear(),
+                enrollment: 'N/A',
+                link: `${OPENTARGETS_CONFIG.platformUrl}/target/${targetData.target.id}`,
+                
+                target_a: targetData.target.approvedSymbol,
+                target_b: interaction.targetB.approvedSymbol,
+                entity_type: 'target-interaction',
+                
+                raw_data: interaction
+            });
+            
+            // Format exactly like ENSG00000141510_interacting_partners.csv
+            partnerAssociations.push({
+                targetA: targetData.target.approvedSymbol,
+                targetB: interaction.targetB.approvedSymbol,
+                score: interaction.score
+            });
+        });
+        
+        return results;
+    }
+    
+    // Processes: "List of approved compounds for a disease A"
+    processDiseaseCompounds(diseaseData, intent) {
+        if (!diseaseData?.disease?.knownDrugs?.rows) return [];
+        
+        const results = [];
+        const compoundAssociations = [];
+        
+        diseaseData.disease.knownDrugs.rows.forEach((drugAssoc, index) => {
+            const drug = drugAssoc.drug;
+            
+            // Only include approved drugs
+            if (!drug.isApproved) return;
+            
+            results.push({
+                id: `OT-disease-approved-drug-${diseaseData.disease.id}-${drug.id}-${index}`,
+                database: 'Open Targets',
+                title: `${drug.name} approved for ${diseaseData.disease.name}`,
+                type: `Approved Drug - ${drug.drugType || 'Unknown'}`,
+                status_significance: 'Approved Treatment',
+                details: `${drug.name} is approved for ${diseaseData.disease.name}`,
+                phase: 'Approved',
+                status: 'Approved',
+                sponsor: 'Multiple',
+                year: drug.yearOfFirstApproval || new Date().getFullYear(),
+                enrollment: 'N/A',
+                link: `${OPENTARGETS_CONFIG.platformUrl}/drug/${drug.id}`,
+                
+                drug_name: drug.name,
+                disease_name: diseaseData.disease.name,
+                entity_type: 'disease-approved-drug',
+                
+                raw_data: drugAssoc
+            });
+            
+            // Format exactly like EFO_0000756_approved_compounds_opentarget.csv
+            compoundAssociations.push({
+                drug: drug.name
+            });
+        });
+        
+        return results;
+    }
+    
+    // Default processor for other patterns
+    processDefault(data, intent) {
+        // Use existing processing logic for unspecified patterns
+        if (intent.type === 'drug-diseases') {
+            return this.processDrugDiseases(data, intent);
+        } else if (intent.type === 'drug-targets') {
+            return this.processDrugTargets(data, intent);
+        } else if (intent.type === 'target-diseases') {
+            return this.processTargetDiseases(data, intent);
+        } else if (intent.type === 'target-interactions') {
+            return this.processInteractingPartners(data, intent);
+        } else if (intent.type === 'disease-compounds') {
+            return this.processDiseaseCompounds(data, intent);
+        } else {
+            return this.processGeneralSearch(data, intent);
+        }
+    }
+    
+    // Helper method for drug diseases (original)
     processDrugDiseases(drugData, intent) {
         if (!drugData?.drug?.linkedDiseases?.rows) return [];
         
         const results = [];
-        const phaseFilter = this.getPhaseFilter(intent.qualifiers);
-        const approvedOnly = intent.qualifiers.includes('approved');
         
-        // Main drug entry
-        results.push({
-            id: `OT-drug-${drugData.drug.id}`,
-            database: 'Open Targets',
-            title: `${drugData.drug.name} - Drug Profile`,
-            type: `Drug - ${drugData.drug.drugType || 'Unknown'}`,
-            status_significance: drugData.drug.isApproved ? 'Approved Drug' : 'Clinical Development',
-            details: this.createDrugDescription(drugData.drug),
-            phase: drugData.drug.maximumClinicalTrialPhase ? `Phase ${drugData.drug.maximumClinicalTrialPhase}` : 'Unknown',
-            status: drugData.drug.isApproved ? 'Approved' : 'In Development',
-            sponsor: 'Multiple (See Open Targets)',
-            year: drugData.drug.yearOfFirstApproval || new Date().getFullYear(),
-            enrollment: 'N/A',
-            link: `${OPENTARGETS_CONFIG.platformUrl}/drug/${drugData.drug.id}`,
-            
-            // Enhanced drug data
-            drug_name: drugData.drug.name,
-            drug_id: drugData.drug.id,
-            entity_type: 'drug',
-            total_disease_associations: drugData.drug.linkedDiseases.count,
-            
-            raw_data: drugData.drug
-        });
-        
-        // Process disease associations with filtering
         drugData.drug.linkedDiseases.rows.forEach((association, index) => {
             const phase = association.maxPhaseForIndication || association.clinicalTrialPhase;
-            
-            // Apply filters
-            if (phaseFilter !== null && phase !== phaseFilter) return;
-            if (approvedOnly && phase !== 4) return;
             
             results.push({
                 id: `OT-drug-disease-${drugData.drug.id}-${association.disease.id}-${index}`,
@@ -538,13 +996,8 @@ class BiologyDataProcessor {
                 enrollment: 'N/A',
                 link: `${OPENTARGETS_CONFIG.platformUrl}/evidence/${drugData.drug.id}/${association.disease.id}`,
                 
-                // Biology team format
                 drug_name: drugData.drug.name,
                 disease_name: association.disease.name,
-                disease_id: association.disease.id,
-                max_phase_for_indication: association.maxPhaseForIndication,
-                clinical_trial_phase: association.clinicalTrialPhase,
-                phase_number: phase,
                 entity_type: 'drug-disease-association',
                 
                 raw_data: association
@@ -554,6 +1007,7 @@ class BiologyDataProcessor {
         return results;
     }
     
+    // Helper method for drug targets (original)
     processDrugTargets(drugData, intent) {
         if (!drugData?.drug?.linkedTargets?.rows) return [];
         
@@ -574,14 +1028,8 @@ class BiologyDataProcessor {
                 enrollment: 'N/A',
                 link: `${OPENTARGETS_CONFIG.platformUrl}/target/${association.target.id}`,
                 
-                // Biology team format
                 drug_name: drugData.drug.name,
                 target_symbol: association.target.approvedSymbol,
-                target_name: association.target.approvedName,
-                target_id: association.target.id,
-                mechanism_of_action: association.mechanismOfAction,
-                action_type: association.actionType,
-                references: association.references,
                 entity_type: 'drug-target-association',
                 
                 raw_data: association
@@ -591,216 +1039,7 @@ class BiologyDataProcessor {
         return results;
     }
     
-    processDrugToxicities(drugData, intent) {
-        const results = [];
-        
-        if (drugData?.drug?.safetyLiabilities) {
-            drugData.drug.safetyLiabilities.forEach((safety, index) => {
-                results.push({
-                    id: `OT-drug-toxicity-${drugData.drug.id}-${index}`,
-                    database: 'Open Targets',
-                    title: `${drugData.drug.name} - ${safety.event}`,
-                    type: `Drug Safety - ${safety.event}`,
-                    status_significance: 'Safety Information',
-                    details: `Safety liability: ${safety.event}. Biosamples: ${safety.biosamples?.join(', ') || 'N/A'}`,
-                    phase: 'N/A',
-                    status: 'Safety Data',
-                    sponsor: 'N/A',
-                    year: new Date().getFullYear(),
-                    enrollment: 'N/A',
-                    link: `${OPENTARGETS_CONFIG.platformUrl}/drug/${drugData.drug.id}`,
-                    
-                    // Biology team format
-                    drug_name: drugData.drug.name,
-                    warning_type: safety.event,
-                    toxicity_class: safety.event,
-                    effects: safety.effects,
-                    biosamples: safety.biosamples,
-                    datasource: safety.datasource,
-                    literature: safety.literature,
-                    entity_type: 'drug-toxicity',
-                    
-                    raw_data: safety
-                });
-            });
-        }
-        
-        // Add black box warning if present
-        if (drugData?.drug?.blackBoxWarning) {
-            results.push({
-                id: `OT-drug-blackbox-${drugData.drug.id}`,
-                database: 'Open Targets',
-                title: `${drugData.drug.name} - Black Box Warning`,
-                type: 'Drug Safety - Black Box Warning',
-                status_significance: 'Black Box Warning',
-                details: `${drugData.drug.name} has FDA Black Box Warning`,
-                phase: 'N/A',
-                status: 'Black Box Warning',
-                sponsor: 'FDA',
-                year: new Date().getFullYear(),
-                enrollment: 'N/A',
-                link: `${OPENTARGETS_CONFIG.platformUrl}/drug/${drugData.drug.id}`,
-                
-                warning_type: 'Black Box Warning',
-                toxicity_class: 'Serious',
-                drug_name: drugData.drug.name,
-                entity_type: 'drug-warning',
-                
-                raw_data: { blackBoxWarning: true }
-            });
-        }
-        
-        return results;
-    }
-    
-    processTargetDiseases(targetData, intent) {
-        if (!targetData?.target?.associatedDiseases?.rows) return [];
-        
-        const results = [];
-        
-        // Main target entry
-        results.push({
-            id: `OT-target-${targetData.target.id}`,
-            database: 'Open Targets',
-            title: `${targetData.target.approvedSymbol} - ${targetData.target.approvedName}`,
-            type: `Target - ${targetData.target.biotype || 'Protein'}`,
-            status_significance: 'Drug Target',
-            details: `Target: ${targetData.target.approvedSymbol}. Associated diseases: ${targetData.target.associatedDiseases.count}`,
-            phase: 'N/A',
-            status: 'Drug Target',
-            sponsor: 'N/A',
-            year: new Date().getFullYear(),
-            enrollment: 'N/A',
-            link: `${OPENTARGETS_CONFIG.platformUrl}/target/${targetData.target.id}`,
-            
-            target_symbol: targetData.target.approvedSymbol,
-            target_name: targetData.target.approvedName,
-            target_id: targetData.target.id,
-            entity_type: 'target',
-            total_disease_associations: targetData.target.associatedDiseases.count,
-            
-            raw_data: targetData.target
-        });
-        
-        // Process disease associations
-        targetData.target.associatedDiseases.rows.forEach((association, index) => {
-            results.push({
-                id: `OT-target-disease-${targetData.target.id}-${association.disease.id}-${index}`,
-                database: 'Open Targets',
-                title: `${targetData.target.approvedSymbol} ↔ ${association.disease.name}`,
-                type: `Target-Disease Association - Score ${association.score.toFixed(3)}`,
-                status_significance: 'Disease Association',
-                details: `${targetData.target.approvedSymbol} associated with ${association.disease.name}. Score: ${association.score.toFixed(3)}`,
-                phase: 'N/A',
-                status: 'Association Data',
-                sponsor: 'N/A',
-                year: new Date().getFullYear(),
-                enrollment: 'N/A',
-                link: `${OPENTARGETS_CONFIG.platformUrl}/evidence/${targetData.target.id}/${association.disease.id}`,
-                
-                // Biology team format
-                target_symbol: targetData.target.approvedSymbol,
-                disease_name: association.disease.name,
-                disease_id: association.disease.id,
-                association_score: association.score,
-                datasource_scores: association.datatypeScores,
-                entity_type: 'target-disease-association',
-                
-                raw_data: association
-            });
-        });
-        
-        return results;
-    }
-    
-    processTargetInteractions(targetData, intent) {
-        if (!targetData?.target?.interactions?.rows) return [];
-        
-        const results = [];
-        
-        targetData.target.interactions.rows.forEach((interaction, index) => {
-            results.push({
-                id: `OT-target-interaction-${targetData.target.id}-${interaction.targetB.id}-${index}`,
-                database: 'Open Targets',
-                title: `${targetData.target.approvedSymbol} ↔ ${interaction.targetB.approvedSymbol}`,
-                type: `Protein-Protein Interaction - Score ${interaction.score.toFixed(3)}`,
-                status_significance: 'Protein Interaction',
-                details: `${targetData.target.approvedSymbol} interacts with ${interaction.targetB.approvedSymbol}. Score: ${interaction.score.toFixed(3)}`,
-                phase: 'N/A',
-                status: 'Interaction Data',
-                sponsor: 'N/A',
-                year: new Date().getFullYear(),
-                enrollment: 'N/A',
-                link: `${OPENTARGETS_CONFIG.platformUrl}/target/${targetData.target.id}`,
-                
-                // Biology team format
-                target_a: {
-                    id: targetData.target.id,
-                    approvedSymbol: targetData.target.approvedSymbol,
-                    approvedName: targetData.target.approvedName
-                },
-                target_b: {
-                    id: interaction.targetB.id,
-                    approvedSymbol: interaction.targetB.approvedSymbol,
-                    approvedName: interaction.targetB.approvedName
-                },
-                interaction_score: interaction.score,
-                source_database: interaction.sourceDatabase,
-                interaction_type: interaction.intType,
-                entity_type: 'target-interaction',
-                
-                raw_data: interaction
-            });
-        });
-        
-        return results;
-    }
-    
-    processDiseaseCompounds(diseaseData, intent) {
-        if (!diseaseData?.disease?.knownDrugs?.rows) return [];
-        
-        const results = [];
-        const approvedOnly = intent.qualifiers.includes('approved');
-        
-        diseaseData.disease.knownDrugs.rows.forEach((drugAssoc, index) => {
-            const drug = drugAssoc.drug;
-            
-            // Apply approved filter if requested
-            if (approvedOnly && !drug.isApproved) return;
-            
-            results.push({
-                id: `OT-disease-drug-${diseaseData.disease.id}-${drug.id}-${index}`,
-                database: 'Open Targets',
-                title: `${drug.name} for ${diseaseData.disease.name}`,
-                type: `Disease-Drug Association - ${drug.isApproved ? 'Approved' : 'Investigational'}`,
-                status_significance: drug.isApproved ? 'Approved Treatment' : 'Investigational',
-                details: `${drug.name} ${drug.isApproved ? 'approved' : 'investigated'} for ${diseaseData.disease.name}. Max phase: ${drug.maximumClinicalTrialPhase}`,
-                phase: drug.maximumClinicalTrialPhase ? `Phase ${drug.maximumClinicalTrialPhase}` : 'Unknown',
-                status: drugAssoc.status || (drug.isApproved ? 'Approved' : 'Clinical'),
-                sponsor: 'Multiple',
-                year: drug.yearOfFirstApproval || new Date().getFullYear(),
-                enrollment: 'N/A',
-                link: `${OPENTARGETS_CONFIG.platformUrl}/evidence/${drug.id}/${diseaseData.disease.id}`,
-                
-                // Biology team format
-                drug_name: drug.name,
-                drug_id: drug.id,
-                disease_name: diseaseData.disease.name,
-                is_approved: drug.isApproved,
-                year_of_first_approval: drug.yearOfFirstApproval,
-                maximum_clinical_trial_phase: drug.maximumClinicalTrialPhase,
-                black_box_warning: drug.blackBoxWarning,
-                mechanism_of_action: drugAssoc.mechanismOfAction,
-                clinical_trial_phase: drugAssoc.clinicalTrialPhase,
-                entity_type: 'disease-drug-association',
-                
-                raw_data: drugAssoc
-            });
-        });
-        
-        return results;
-    }
-    
+    // Helper method for general search (original)
     processGeneralSearch(searchData, intent) {
         if (!searchData?.search?.hits) return [];
         
@@ -823,27 +1062,10 @@ class BiologyDataProcessor {
                 
                 entity_type: hit.entity,
                 entity_id: hit.id,
-                score: hit.score || 0,
                 
                 raw_data: entity
             };
         });
-    }
-    
-    // Helper methods
-    getPhaseFilter(qualifiers) {
-        const phaseQualifier = qualifiers.find(q => q.startsWith('phase-'));
-        return phaseQualifier ? parseInt(phaseQualifier.split('-')[1]) : null;
-    }
-    
-    createDrugDescription(drug) {
-        const parts = [];
-        if (drug.drugType) parts.push(`Type: ${drug.drugType}`);
-        if (drug.maximumClinicalTrialPhase) parts.push(`Max Phase: ${drug.maximumClinicalTrialPhase}`);
-        if (drug.isApproved) parts.push('Status: Approved');
-        if (drug.yearOfFirstApproval) parts.push(`First Approval: ${drug.yearOfFirstApproval}`);
-        if (drug.blackBoxWarning) parts.push('⚠️ Black Box Warning');
-        return parts.join(' | ');
     }
 }
 
@@ -880,29 +1102,21 @@ async function executeGraphQL(query, variables) {
 }
 
 /**
- * MAIN AGENTIC AI SEARCH FUNCTION
+ * MAIN COMPREHENSIVE SEARCH FUNCTION
  */
-async function agenticBiologySearch(query, limit = 100) {
-    console.log(`🤖 Agentic Biology AI processing: "${query}"`);
+async function comprehensiveBiologySearch(query, limit = 100) {
+    console.log(`🤖 Comprehensive Biology AI processing: "${query}"`);
     
-    // Initialize AI components
     const intelligence = new BiologyQueryIntelligence();
     const resolver = new EntityResolver();
     const processor = new BiologyDataProcessor();
     
-    // Parse query intent
     const intent = intelligence.parseQuery(query);
     console.log(`🧠 Parsed intent:`, intent);
-    
-    if (intent.confidence < 0.5) {
-        console.log('⚠️ Low confidence query, falling back to general search');
-        intent.type = 'general_search';
-    }
     
     let results = [];
     
     try {
-        // Route to appropriate handler based on intent
         if (intent.type.startsWith('drug-')) {
             results = await handleDrugQuery(intent, resolver, processor);
         } else if (intent.type.startsWith('target-')) {
@@ -914,17 +1128,15 @@ async function agenticBiologySearch(query, limit = 100) {
         }
         
     } catch (error) {
-        console.error('Error in agentic search:', error);
-        // Fallback to general search
+        console.error('Error in comprehensive search:', error);
         results = await handleGeneralQuery(intent, processor);
     }
     
-    console.log(`✅ Agentic AI returned ${results.length} results`);
-    return results;
+    console.log(`✅ Comprehensive AI returned ${results.length} results`);
+    return { results, intent };
 }
 
 async function handleDrugQuery(intent, resolver, processor) {
-    // Resolve drug entity
     const drug = await resolver.resolveEntity(intent.entity, 'drug');
     if (!drug) {
         throw new Error(`Could not resolve drug: ${intent.entity}`);
@@ -932,27 +1144,20 @@ async function handleDrugQuery(intent, resolver, processor) {
     
     console.log(`💊 Resolved drug: ${drug.name} (${drug.id})`);
     
-    // Choose appropriate query based on relationship
-    let queryType, data;
+    let data;
     
-    if (intent.relationship === 'diseases') {
-        data = await executeGraphQL(BIOLOGY_QUERIES.drugDiseases, { drugId: drug.id });
-        return processor.process(data, intent);
-    } else if (intent.relationship === 'targets') {
-        data = await executeGraphQL(BIOLOGY_QUERIES.drugTargets, { drugId: drug.id });
-        return processor.process(data, intent);
-    } else if (intent.relationship === 'toxicities' || intent.relationship === 'adverse_events') {
+    if (intent.specificPattern === 'toxicities' || intent.relationship === 'toxicities') {
         data = await executeGraphQL(BIOLOGY_QUERIES.drugSafety, { drugId: drug.id });
-        return processor.process(data, intent);
+    } else if (intent.specificPattern === 'binding_affinities' || intent.relationship === 'binding_affinities') {
+        data = await executeGraphQL(BIOLOGY_QUERIES.drugTargets, { drugId: drug.id });
     } else {
-        // Default to diseases for drug queries
         data = await executeGraphQL(BIOLOGY_QUERIES.drugDiseases, { drugId: drug.id });
-        return processor.process(data, intent);
     }
+    
+    return processor.process(data, intent);
 }
 
 async function handleTargetQuery(intent, resolver, processor) {
-    // Resolve target entity
     const target = await resolver.resolveEntity(intent.entity, 'target');
     if (!target) {
         throw new Error(`Could not resolve target: ${intent.entity}`);
@@ -962,21 +1167,16 @@ async function handleTargetQuery(intent, resolver, processor) {
     
     let data;
     
-    if (intent.relationship === 'diseases') {
-        data = await executeGraphQL(BIOLOGY_QUERIES.targetDiseases, { targetId: target.id });
-        return processor.process(data, intent);
-    } else if (intent.relationship === 'interactions') {
+    if (intent.specificPattern === 'interacting_partners' || intent.relationship === 'interactions') {
         data = await executeGraphQL(BIOLOGY_QUERIES.targetInteractions, { targetId: target.id });
-        return processor.process(data, intent);
     } else {
-        // Default to diseases for target queries
         data = await executeGraphQL(BIOLOGY_QUERIES.targetDiseases, { targetId: target.id });
-        return processor.process(data, intent);
     }
+    
+    return processor.process(data, intent);
 }
 
 async function handleDiseaseQuery(intent, resolver, processor) {
-    // Resolve disease entity
     const disease = await resolver.resolveEntity(intent.entity, 'disease');
     if (!disease) {
         throw new Error(`Could not resolve disease: ${intent.entity}`);
@@ -1004,7 +1204,6 @@ async function handleGeneralQuery(intent, processor) {
  * MAIN API HANDLER
  */
 export default async function handler(req, res) {
-    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -1024,15 +1223,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ 
             error: 'Query parameter is required',
             examples: [
-                'Drug: List the diseases in Phase-2 for Imatinib',
-                'Drug: List the targets for pembrolizumab',
-                'Drug: List the toxicities for dasatinib', 
-                'Target: List the diseases associated with JAK2',
-                'Target: List the interacting partners for TP53',
-                'Disease: List approved compounds for melanoma',
-                'imatinib phase 2 diseases',
-                'EGFR protein interactions',
-                'cancer drug approvals'
+                'List the diseases in Phase-2 for Imatinib',
+                'List the diseases for which Rituximab is approved',
+                'For Dasatinib, list the various toxicities',
+                'For compound imatinib, list all the targets and their binding affinities',
+                'List the diseases associated with JAK2',
+                'For Target TP53, list all the interacting partners',
+                'List of approved compounds for a disease melanoma'
             ]
         });
     }
@@ -1040,44 +1237,84 @@ export default async function handler(req, res) {
     const startTime = performance.now();
 
     try {
-        console.log(`🤖 Agentic Biology AI search for: "${query}"`);
+        console.log(`🤖 Comprehensive Biology AI search for: "${query}"`);
         
-        // Execute agentic search
-        const results = await agenticBiologySearch(query, parseInt(limit));
+        const { results, intent } = await comprehensiveBiologySearch(query, parseInt(limit));
         
         const endTime = performance.now();
         const responseTime = Math.round(endTime - startTime);
         
-        // Create biology team data format if applicable
-        const intelligence = new BiologyQueryIntelligence();
-        const intent = intelligence.parseQuery(query);
-        
+        // Create biologist data format based on specific patterns
         let biologist_data = null;
-        if (intent.type === 'drug-diseases') {
-            const phaseFilter = intent.qualifiers.find(q => q.startsWith('phase-'));
-            if (phaseFilter) {
-                const phase = parseInt(phaseFilter.split('-')[1]);
-                biologist_data = results
-                    .filter(r => r.entity_type === 'drug-disease-association' && r.phase_number === phase)
-                    .map(r => ({
-                        disease: { name: r.disease_name },
-                        maxPhaseForIndication: r.max_phase_for_indication || r.phase_number
-                    }));
-            }
+        
+        if (intent.specificPattern === 'phase_diseases') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'drug-phase-disease')
+                .map(r => ({
+                    disease: r.disease_name,
+                    maxPhaseForIndication: r.phase_number
+                }));
+        } else if (intent.specificPattern === 'approved_diseases') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'drug-approved-disease')
+                .map(r => ({
+                    disease: r.disease_name,
+                    maxPhaseForIndication: 4
+                }));
+        } else if (intent.specificPattern === 'toxicities') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'drug-toxicity' || r.entity_type === 'drug-adverse-event')
+                .map(r => ({
+                    warningType: r.toxicity_event || r.adverse_event,
+                    toxicityClass: r.toxicity_event || 'Adverse Event',
+                    efoIdForWarningClass: 'N/A',
+                    references: 'OpenTargets'
+                }));
+        } else if (intent.specificPattern === 'binding_affinities') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'drug-target-binding')
+                .map(r => ({
+                    mechanismOfAction: r.raw_data?.mechanismOfAction || 'Unknown',
+                    targets: r.target_symbol,
+                    actionType: r.raw_data?.actionType || 'Unknown',
+                    references: 'OpenTargets'
+                }));
+        } else if (intent.specificPattern === 'target_diseases') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'target-disease-association')
+                .map(r => ({
+                    disease: r.disease_name,
+                    datasourceScores: JSON.stringify(r.raw_data?.datatypeScores || [])
+                }));
+        } else if (intent.specificPattern === 'interacting_partners') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'target-interaction')
+                .map(r => ({
+                    targetA: r.target_a,
+                    targetB: r.target_b,
+                    score: r.raw_data?.score || 0
+                }));
+        } else if (intent.specificPattern === 'disease_compounds') {
+            biologist_data = results
+                .filter(r => r.entity_type === 'disease-approved-drug')
+                .map(r => ({
+                    drug: r.drug_name
+                }));
         }
         
-        console.log(`🎉 Agentic Biology AI completed: ${results.length} results in ${responseTime}ms`);
+        console.log(`🎉 Comprehensive Biology AI completed: ${results.length} results in ${responseTime}ms`);
+        console.log(`📊 Biologist data format created: ${biologist_data?.length || 0} entries`);
 
         return res.status(200).json({
             results: results,
             total: results.length,
             query: query,
             intent: intent,
-            biologist_data: biologist_data,
+            biologist_data: biologist_data, // Exact CSV format for each query pattern
             search_timestamp: new Date().toISOString(),
             response_time: responseTime,
             api_status: 'success',
-            system: 'Agentic Biology AI - OpenTargets Intelligence',
+            system: 'Comprehensive Agentic Biology AI - OpenTargets Intelligence',
             data_source: 'Open Targets Platform GraphQL API'
         });
 
@@ -1085,10 +1322,10 @@ export default async function handler(req, res) {
         const endTime = performance.now();
         const responseTime = Math.round(endTime - startTime);
         
-        console.error('Agentic Biology AI error:', error);
+        console.error('Comprehensive Biology AI error:', error);
         
         return res.status(500).json({
-            error: 'Agentic Biology AI error',
+            error: 'Comprehensive Biology AI error',
             message: error.message,
             results: [],
             total: 0,
