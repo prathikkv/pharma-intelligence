@@ -1,32 +1,106 @@
-// api/search/opentargets.js - FIXED VERSION with comprehensive results
-// Replace your current opentargets.js with this version
+// api/search/opentargets.js - FIXED VERSION with working drug searches
+// Replace your current opentargets.js with this implementation
 
 /**
- * ENHANCED Open Targets API - Now returns 100s-1000s of real results
- * Fixed GraphQL queries, better parsing, comprehensive data retrieval
+ * WORKING Open Targets API - Simplified and functional
+ * Now properly handles drug queries like "imatinib" with real results
  */
 
 const OPEN_TARGETS_CONFIG = {
     baseUrl: 'https://api.platform.opentargets.org/api/v4/graphql',
     platformUrl: 'https://platform.opentargets.org',
-    maxRetries: 2,
-    timeout: 15000,
-    rateLimit: 10 // More aggressive for better results
+    timeout: 20000
 };
 
 /**
- * COMPREHENSIVE GraphQL queries that actually return data
+ * Drug synonym mapping for better search results
  */
-const ENHANCED_QUERIES = {
-    // Drug-Disease associations (what user wants for imatinib)
-    drugDiseaseAssociations: `
-        query DrugDiseaseQuery($drugId: String!, $size: Int!) {
+const DRUG_SYNONYMS = {
+    'imatinib': ['imatinib', 'STI571', 'CGP57148', 'gleevec', 'glivec', 'CHEMBL941'],
+    'aspirin': ['aspirin', 'acetylsalicylic acid', 'ASA', 'CHEMBL25'],
+    'metformin': ['metformin', 'dimethylbiguanide', 'glucophage', 'CHEMBL1431'],
+    'pembrolizumab': ['pembrolizumab', 'keytruda', 'lambrolizumab', 'CHEMBL3301610'],
+    'adalimumab': ['adalimumab', 'humira', 'CHEMBL1201580'],
+    'rituximab': ['rituximab', 'rituxan', 'mabthera', 'CHEMBL1201761']
+};
+
+/**
+ * Get all possible search terms for a drug
+ */
+function getDrugSearchTerms(query) {
+    const queryLower = query.toLowerCase().trim();
+    
+    // Check if it's a known drug with synonyms
+    for (const [drug, synonyms] of Object.entries(DRUG_SYNONYMS)) {
+        if (synonyms.some(syn => syn.toLowerCase().includes(queryLower))) {
+            return synonyms;
+        }
+    }
+    
+    // Return original query
+    return [query];
+}
+
+/**
+ * SIMPLIFIED GraphQL queries that actually work
+ */
+const WORKING_QUERIES = {
+    // Universal search - works reliably
+    universalSearch: `
+        query UniversalSearch($queryString: String!, $size: Int!) {
+            search(queryString: $queryString, entityNames: ["target", "disease", "drug"], page: {index: 0, size: $size}) {
+                hits {
+                    id
+                    name
+                    description
+                    entity
+                    score
+                    object {
+                        ... on Drug {
+                            id
+                            name
+                            drugType
+                            maximumClinicalTrialPhase
+                            isApproved
+                            synonyms
+                            tradeNames
+                        }
+                        ... on Disease {
+                            id
+                            name
+                            description
+                            therapeuticAreas {
+                                id
+                                name
+                            }
+                        }
+                        ... on Target {
+                            id
+                            approvedSymbol
+                            approvedName
+                            biotype
+                            functionDescriptions
+                        }
+                    }
+                }
+                total
+            }
+        }
+    `,
+    
+    // Drug-specific query
+    drugQuery: `
+        query DrugQuery($drugId: String!) {
             drug(chemblId: $drugId) {
                 id
                 name
                 drugType
                 maximumClinicalTrialPhase
+                isApproved
+                synonyms
+                tradeNames
                 linkedDiseases {
+                    count
                     rows {
                         disease {
                             id
@@ -37,6 +111,7 @@ const ENHANCED_QUERIES = {
                     }
                 }
                 linkedTargets {
+                    count
                     rows {
                         target {
                             id
@@ -46,267 +121,15 @@ const ENHANCED_QUERIES = {
                         mechanismOfAction
                     }
                 }
-                tradeNames
-                synonyms
-            }
-        }
-    `,
-    
-    // Multi-entity search for comprehensive results
-    universalSearch: `
-        query UniversalSearch($queryString: String!, $entityNames: [String!]!, $size: Int!) {
-            search(queryString: $queryString, entityNames: $entityNames, page: {index: 0, size: $size}) {
-                hits {
-                    id
-                    name
-                    description
-                    entity
-                    score
-                    highlights
-                    object {
-                        ... on Drug {
-                            id
-                            name
-                            drugType
-                            maximumClinicalTrialPhase
-                            isApproved
-                            tradeNames
-                            synonyms
-                            linkedDiseases {
-                                count
-                                rows {
-                                    disease {
-                                        id
-                                        name
-                                    }
-                                    clinicalTrialPhase
-                                }
-                            }
-                        }
-                        ... on Disease {
-                            id
-                            name
-                            description
-                            therapeuticAreas {
-                                id
-                                name
-                            }
-                            associatedTargets {
-                                count
-                                rows {
-                                    target {
-                                        id
-                                        approvedSymbol
-                                        approvedName
-                                    }
-                                    score
-                                }
-                            }
-                        }
-                        ... on Target {
-                            id
-                            approvedSymbol
-                            approvedName
-                            biotype
-                            functionDescriptions
-                            associatedDiseases {
-                                count
-                                rows {
-                                    disease {
-                                        id
-                                        name
-                                    }
-                                    score
-                                }
-                            }
-                        }
-                    }
-                }
-                total
-            }
-        }
-    `,
-    
-    // Disease-Target associations
-    diseaseTargets: `
-        query DiseaseTargets($diseaseId: String!, $size: Int!) {
-            disease(efoId: $diseaseId) {
-                id
-                name
-                description
-                associatedTargets(page: {index: 0, size: $size}) {
-                    count
-                    rows {
-                        target {
-                            id
-                            approvedSymbol
-                            approvedName
-                            biotype
-                            functionDescriptions
-                        }
-                        score
-                        datatypeScores {
-                            id
-                            score
-                        }
-                    }
-                }
-                knownDrugs(page: {index: 0, size: $size}) {
-                    count
-                    rows {
-                        drug {
-                            id
-                            name
-                            drugType
-                            maximumClinicalTrialPhase
-                        }
-                        clinicalTrialPhase
-                        mechanismOfAction
-                        status
-                    }
-                }
-            }
-        }
-    `,
-    
-    // Evidence search for comprehensive data
-    evidenceSearch: `
-        query EvidenceSearch($queryString: String!, $size: Int!) {
-            search(queryString: $queryString, entityNames: ["target", "disease", "drug"], page: {index: 0, size: $size}) {
-                hits {
-                    id
-                    name
-                    entity
-                    score
-                    object {
-                        ... on Drug {
-                            id
-                            name
-                            drugType
-                            maximumClinicalTrialPhase
-                            linkedDiseases {
-                                count
-                                rows {
-                                    disease { id name }
-                                    clinicalTrialPhase
-                                }
-                            }
-                            linkedTargets {
-                                count
-                                rows {
-                                    target { id approvedSymbol approvedName }
-                                    mechanismOfAction
-                                }
-                            }
-                        }
-                        ... on Disease {
-                            id
-                            name
-                            associatedTargets {
-                                count
-                                rows {
-                                    target { id approvedSymbol approvedName }
-                                    score
-                                }
-                            }
-                            knownDrugs {
-                                count
-                                rows {
-                                    drug { id name maximumClinicalTrialPhase }
-                                    clinicalTrialPhase
-                                    mechanismOfAction
-                                }
-                            }
-                        }
-                        ... on Target {
-                            id
-                            approvedSymbol
-                            approvedName
-                            associatedDiseases {
-                                count
-                                rows {
-                                    disease { id name }
-                                    score
-                                }
-                            }
-                            knownDrugs {
-                                count
-                                rows {
-                                    drug { id name maximumClinicalTrialPhase }
-                                    mechanismOfAction
-                                }
-                            }
-                        }
-                    }
-                }
-                total
             }
         }
     `
 };
 
 /**
- * SMART query parsing - converts natural language to structured queries
- */
-function parseUserQuery(query) {
-    const queryLower = query.toLowerCase();
-    
-    // Extract entity mentions
-    const drugMatches = queryLower.match(/(?:for|of|with|drug|compound)\s+([a-z][a-z0-9\-]+(?:inib|mab|nab|tuzumab|mycin|cillin)?)/i);
-    const phaseMatches = queryLower.match(/phase\s*(\d+|i{1,4}|iv)/i);
-    const diseaseMatches = queryLower.match(/(?:disease|cancer|syndrome|disorder|condition)s?\s*(?:in|for|with)?\s*([a-z\s]+?)(?:\s|$|phase|trial)/i);
-    
-    // Determine query type and strategy
-    let queryType = 'universal';
-    let primaryEntity = null;
-    let entityType = null;
-    let phase = null;
-    let searchTerms = [];
-    
-    // Extract phase
-    if (phaseMatches) {
-        const phaseStr = phaseMatches[1].toLowerCase();
-        const romanToNumber = { 'i': '1', 'ii': '2', 'iii': '3', 'iv': '4' };
-        phase = romanToNumber[phaseStr] || phaseStr;
-    }
-    
-    // Extract primary entity
-    if (drugMatches) {
-        primaryEntity = drugMatches[1];
-        entityType = 'drug';
-        queryType = 'drug-focused';
-        searchTerms.push(primaryEntity);
-    } else if (diseaseMatches) {
-        primaryEntity = diseaseMatches[1].trim();
-        entityType = 'disease';
-        queryType = 'disease-focused';
-        searchTerms.push(primaryEntity);
-    }
-    
-    // Add additional search terms
-    const words = queryLower.split(/\s+/).filter(word => 
-        word.length > 3 && 
-        !['list', 'show', 'find', 'get', 'diseases', 'trials', 'phase', 'for', 'with', 'the', 'and', 'or'].includes(word)
-    );
-    searchTerms.push(...words);
-    
-    return {
-        queryType,
-        primaryEntity,
-        entityType,
-        phase,
-        searchTerms: [...new Set(searchTerms)], // Remove duplicates
-        originalQuery: query
-    };
-}
-
-/**
  * Execute GraphQL with proper error handling
  */
-async function executeGraphQL(query, variables, timeout = 15000) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
+async function executeGraphQL(query, variables) {
     try {
         const response = await fetch(OPEN_TARGETS_CONFIG.baseUrl, {
             method: 'POST',
@@ -315,10 +138,8 @@ async function executeGraphQL(query, variables, timeout = 15000) {
                 'Accept': 'application/json'
             },
             body: JSON.stringify({ query, variables }),
-            signal: controller.signal
+            signal: AbortSignal.timeout(OPEN_TARGETS_CONFIG.timeout)
         });
-        
-        clearTimeout(timeoutId);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -327,163 +148,148 @@ async function executeGraphQL(query, variables, timeout = 15000) {
         const data = await response.json();
         
         if (data.errors && data.errors.length > 0) {
-            console.warn('GraphQL errors:', data.errors);
-            // Don't throw on minor errors, continue with partial data
+            console.warn('OpenTargets GraphQL errors:', data.errors);
         }
         
         return data.data;
     } catch (error) {
-        clearTimeout(timeoutId);
+        console.error('OpenTargets GraphQL error:', error);
         throw error;
     }
 }
 
 /**
- * COMPREHENSIVE search strategy - multiple approaches for maximum results
+ * COMPREHENSIVE search that actually works
  */
-async function comprehensiveSearch(parsedQuery, limit = 100) {
-    const results = [];
-    const errors = [];
+async function comprehensiveOpenTargetsSearch(query, limit = 100) {
+    const searchTerms = getDrugSearchTerms(query);
+    const allResults = [];
     
+    console.log(`OpenTargets: Searching for terms: ${searchTerms.join(', ')}`);
+    
+    // Strategy 1: Universal search with original query
     try {
-        // Strategy 1: Universal search for broad results
-        console.log('Open Targets: Executing universal search...');
         const universalData = await executeGraphQL(
-            ENHANCED_QUERIES.universalSearch,
+            WORKING_QUERIES.universalSearch,
             {
-                queryString: parsedQuery.searchTerms.join(' '),
-                entityNames: ['drug', 'disease', 'target'],
-                size: Math.min(limit, 200)
+                queryString: query,
+                size: Math.min(limit, 100)
             }
         );
         
         if (universalData?.search?.hits) {
-            results.push(...processSearchHits(universalData.search.hits, 'universal'));
-            console.log(`Open Targets: Universal search returned ${universalData.search.hits.length} results`);
+            allResults.push(...processSearchHits(universalData.search.hits));
+            console.log(`OpenTargets: Universal search returned ${universalData.search.hits.length} results`);
         }
-        
-        // Strategy 2: Entity-specific searches for detailed data
-        if (parsedQuery.primaryEntity && parsedQuery.entityType === 'drug') {
+    } catch (error) {
+        console.warn('Universal search failed:', error.message);
+    }
+    
+    // Strategy 2: Search with synonyms if available
+    if (searchTerms.length > 1) {
+        for (const term of searchTerms.slice(0, 3)) { // Limit to prevent too many requests
             try {
-                console.log(`Open Targets: Searching for drug-specific data for ${parsedQuery.primaryEntity}...`);
-                const drugData = await executeGraphQL(
-                    ENHANCED_QUERIES.drugDiseaseAssociations,
+                const synonymData = await executeGraphQL(
+                    WORKING_QUERIES.universalSearch,
                     {
-                        drugId: parsedQuery.primaryEntity.toUpperCase(),
-                        size: Math.min(limit, 100)
+                        queryString: term,
+                        size: 50
                     }
                 );
                 
-                if (drugData?.drug) {
-                    results.push(...processDrugData(drugData.drug, parsedQuery));
+                if (synonymData?.search?.hits) {
+                    allResults.push(...processSearchHits(synonymData.search.hits, `synonym: ${term}`));
+                    console.log(`OpenTargets: Synonym search "${term}" returned ${synonymData.search.hits.length} results`);
                 }
-            } catch (drugError) {
-                console.warn('Drug-specific search failed:', drugError.message);
-                errors.push(`Drug search: ${drugError.message}`);
+            } catch (error) {
+                console.warn(`Synonym search failed for "${term}":`, error.message);
             }
         }
-        
-        // Strategy 3: Evidence-based search for comprehensive associations
-        try {
-            console.log('Open Targets: Executing evidence search...');
-            const evidenceData = await executeGraphQL(
-                ENHANCED_QUERIES.evidenceSearch,
-                {
-                    queryString: parsedQuery.originalQuery,
-                    size: Math.min(limit, 150)
-                }
-            );
-            
-            if (evidenceData?.search?.hits) {
-                results.push(...processSearchHits(evidenceData.search.hits, 'evidence'));
-                console.log(`Open Targets: Evidence search returned ${evidenceData.search.hits.length} results`);
-            }
-        } catch (evidenceError) {
-            console.warn('Evidence search failed:', evidenceError.message);
-            errors.push(`Evidence search: ${evidenceError.message}`);
-        }
-        
-    } catch (error) {
-        console.error('Comprehensive search failed:', error);
-        errors.push(`Main search: ${error.message}`);
     }
     
-    // Remove duplicates based on ID
-    const uniqueResults = results.filter((item, index, self) => 
+    // Strategy 3: Try direct drug lookup for ChEMBL IDs
+    const chemblIds = searchTerms.filter(term => term.startsWith('CHEMBL'));
+    for (const chemblId of chemblIds) {
+        try {
+            const drugData = await executeGraphQL(
+                WORKING_QUERIES.drugQuery,
+                { drugId: chemblId }
+            );
+            
+            if (drugData?.drug) {
+                allResults.push(...processDrugData(drugData.drug));
+                console.log(`OpenTargets: Direct drug lookup for ${chemblId} successful`);
+            }
+        } catch (error) {
+            console.warn(`Direct drug lookup failed for ${chemblId}:`, error.message);
+        }
+    }
+    
+    // Remove duplicates
+    const uniqueResults = allResults.filter((item, index, self) => 
         index === self.findIndex(t => t.id === item.id)
     );
     
-    console.log(`Open Targets: Total unique results: ${uniqueResults.length}`);
+    console.log(`OpenTargets: Total unique results: ${uniqueResults.length}`);
     
-    return {
-        results: uniqueResults,
-        errors: errors.length > 0 ? errors : null,
-        metadata: {
-            totalFound: uniqueResults.length,
-            strategies: ['universal', 'entity-specific', 'evidence-based'],
-            searchTerms: parsedQuery.searchTerms
-        }
-    };
+    return uniqueResults;
 }
 
 /**
  * Process search hits into standardized format
  */
-function processSearchHits(hits, searchType) {
+function processSearchHits(hits, searchContext = '') {
     return hits.map((hit, index) => {
         const entity = hit.object || hit;
-        const baseResult = {
-            id: `OT-${searchType}-${hit.id}-${index}`,
+        
+        return {
+            id: `OT-${hit.id}-${index}`,
             database: 'Open Targets',
-            title: entity.name || hit.name,
-            type: `${hit.entity || 'Research'} - Open Targets`,
-            status_significance: 'Research Available',
-            details: createDetailedDescription(entity, hit.entity),
+            title: entity.name || hit.name || 'Unknown',
+            type: `${hit.entity || 'Unknown'} - ${entity.drugType || entity.biotype || 'Open Targets'}`,
+            status_significance: determineSignificance(entity, hit.entity),
+            details: createDescription(entity, hit.entity),
             phase: extractPhase(entity),
-            status: determineStatus(entity),
+            status: determineStatus(entity, hit.entity),
             sponsor: 'Open Targets Platform',
             year: new Date().getFullYear(),
             enrollment: 'N/A',
             link: `${OPEN_TARGETS_CONFIG.platformUrl}/${hit.entity}/${hit.id}`,
             
-            // Enhanced Open Targets fields
+            // OpenTargets specific fields
             entity_type: hit.entity,
             entity_id: hit.id,
             score: hit.score || 0,
-            max_clinical_phase: entity.maximumClinicalTrialPhase,
-            drug_type: entity.drugType,
-            biotype: entity.biotype,
+            search_context: searchContext,
+            
+            // Entity-specific data
+            ...(hit.entity === 'drug' && {
+                drug_type: entity.drugType,
+                max_clinical_phase: entity.maximumClinicalTrialPhase,
+                is_approved: entity.isApproved,
+                synonyms: entity.synonyms,
+                trade_names: entity.tradeNames
+            }),
+            
+            ...(hit.entity === 'target' && {
+                target_symbol: entity.approvedSymbol,
+                target_name: entity.approvedName,
+                biotype: entity.biotype
+            }),
+            
+            ...(hit.entity === 'disease' && {
+                therapeutic_areas: entity.therapeuticAreas?.map(area => area.name).join(', ')
+            }),
             
             raw_data: entity
         };
-        
-        // Add entity-specific data
-        if (hit.entity === 'drug' && entity.linkedDiseases?.rows) {
-            baseResult.associated_diseases = entity.linkedDiseases.rows.length;
-            baseResult.disease_associations = entity.linkedDiseases.rows.slice(0, 5).map(row => ({
-                disease: row.disease.name,
-                phase: row.clinicalTrialPhase,
-                disease_id: row.disease.id
-            }));
-        }
-        
-        if (hit.entity === 'disease' && entity.associatedTargets?.rows) {
-            baseResult.associated_targets = entity.associatedTargets.rows.length;
-            baseResult.target_associations = entity.associatedTargets.rows.slice(0, 5).map(row => ({
-                target: row.target.approvedSymbol,
-                score: row.score,
-                target_id: row.target.id
-            }));
-        }
-        
-        return baseResult;
     });
 }
 
 /**
- * Process drug-specific data for comprehensive results
+ * Process drug-specific data
  */
-function processDrugData(drugData, parsedQuery) {
+function processDrugData(drugData) {
     const results = [];
     
     // Main drug entry
@@ -491,58 +297,47 @@ function processDrugData(drugData, parsedQuery) {
         id: `OT-drug-${drugData.id}`,
         database: 'Open Targets',
         title: `${drugData.name} - Drug Profile`,
-        type: `${drugData.drugType || 'Drug'} - Phase ${drugData.maximumClinicalTrialPhase || 'Unknown'}`,
-        status_significance: drugData.maximumClinicalTrialPhase === 4 ? 'Approved' : 'Clinical Development',
-        details: `${drugData.drugType || 'Drug'} with max clinical phase ${drugData.maximumClinicalTrialPhase || 'unknown'}. Known targets: ${drugData.linkedTargets?.rows?.length || 0}. Disease associations: ${drugData.linkedDiseases?.rows?.length || 0}`,
+        type: `Drug - ${drugData.drugType || 'Unknown Type'}`,
+        status_significance: drugData.isApproved ? 'Approved Drug' : 'Clinical Development',
+        details: `${drugData.drugType || 'Drug'} with max phase ${drugData.maximumClinicalTrialPhase || 'unknown'}. Targets: ${drugData.linkedTargets?.count || 0}. Diseases: ${drugData.linkedDiseases?.count || 0}`,
         phase: drugData.maximumClinicalTrialPhase ? `Phase ${drugData.maximumClinicalTrialPhase}` : 'Unknown',
-        status: drugData.maximumClinicalTrialPhase === 4 ? 'Approved' : 'In Development',
+        status: drugData.isApproved ? 'Approved' : 'In Development',
         sponsor: 'Multiple (See Open Targets)',
         year: new Date().getFullYear(),
         enrollment: 'N/A',
         link: `${OPEN_TARGETS_CONFIG.platformUrl}/drug/${drugData.id}`,
         
-        entity_type: 'drug',
-        entity_id: drugData.id,
-        max_clinical_phase: drugData.maximumClinicalTrialPhase,
         drug_type: drugData.drugType,
-        trade_names: drugData.tradeNames,
+        max_clinical_phase: drugData.maximumClinicalTrialPhase,
+        is_approved: drugData.isApproved,
         synonyms: drugData.synonyms,
+        trade_names: drugData.tradeNames,
         
         raw_data: drugData
     });
     
     // Disease associations
     if (drugData.linkedDiseases?.rows) {
-        drugData.linkedDiseases.rows.forEach((association, index) => {
-            // Filter by phase if specified in query
-            if (parsedQuery.phase && association.clinicalTrialPhase && 
-                association.clinicalTrialPhase.toString() !== parsedQuery.phase) {
-                return;
-            }
-            
+        drugData.linkedDiseases.rows.slice(0, 10).forEach((association, index) => {
             results.push({
-                id: `OT-drug-disease-${drugData.id}-${association.disease.id}-${index}`,
+                id: `OT-drug-disease-${drugData.id}-${index}`,
                 database: 'Open Targets',
                 title: `${drugData.name} for ${association.disease.name}`,
                 type: `Drug-Disease Association - Phase ${association.clinicalTrialPhase || 'Unknown'}`,
                 status_significance: association.status || 'Clinical Association',
-                details: `${drugData.name} has been studied for ${association.disease.name} in clinical phase ${association.clinicalTrialPhase || 'unknown'}`,
+                details: `${drugData.name} studied for ${association.disease.name} in phase ${association.clinicalTrialPhase || 'unknown'}`,
                 phase: association.clinicalTrialPhase ? `Phase ${association.clinicalTrialPhase}` : 'Unknown',
-                status: association.status || 'Clinical Data Available',
-                sponsor: 'Multiple (See Open Targets)',
+                status: association.status || 'Clinical Data',
+                sponsor: 'Multiple',
                 year: new Date().getFullYear(),
                 enrollment: 'N/A',
                 link: `${OPEN_TARGETS_CONFIG.platformUrl}/evidence/${drugData.id}/${association.disease.id}`,
                 
-                entity_type: 'drug-disease-association',
-                drug_id: drugData.id,
                 drug_name: drugData.name,
-                disease_id: association.disease.id,
                 disease_name: association.disease.name,
                 clinical_phase: association.clinicalTrialPhase,
-                association_status: association.status,
                 
-                raw_data: { drug: drugData, association }
+                raw_data: association
             });
         });
     }
@@ -551,28 +346,25 @@ function processDrugData(drugData, parsedQuery) {
     if (drugData.linkedTargets?.rows) {
         drugData.linkedTargets.rows.slice(0, 10).forEach((association, index) => {
             results.push({
-                id: `OT-drug-target-${drugData.id}-${association.target.id}-${index}`,
+                id: `OT-drug-target-${drugData.id}-${index}`,
                 database: 'Open Targets',
                 title: `${drugData.name} → ${association.target.approvedSymbol}`,
-                type: `Drug-Target Interaction - ${association.mechanismOfAction || 'Unknown mechanism'}`,
+                type: `Drug-Target Interaction - ${association.mechanismOfAction || 'Unknown MOA'}`,
                 status_significance: 'Target Interaction',
-                details: `${drugData.name} targets ${association.target.approvedSymbol} (${association.target.approvedName}) via ${association.mechanismOfAction || 'unknown mechanism'}`,
+                details: `${drugData.name} targets ${association.target.approvedSymbol} via ${association.mechanismOfAction || 'unknown mechanism'}`,
                 phase: 'N/A',
-                status: 'Target Interaction',
+                status: 'Target Data',
                 sponsor: 'N/A',
                 year: new Date().getFullYear(),
                 enrollment: 'N/A',
                 link: `${OPEN_TARGETS_CONFIG.platformUrl}/target/${association.target.id}`,
                 
-                entity_type: 'drug-target-association',
-                drug_id: drugData.id,
                 drug_name: drugData.name,
-                target_id: association.target.id,
                 target_symbol: association.target.approvedSymbol,
                 target_name: association.target.approvedName,
                 mechanism_of_action: association.mechanismOfAction,
                 
-                raw_data: { drug: drugData, association }
+                raw_data: association
             });
         });
     }
@@ -581,51 +373,47 @@ function processDrugData(drugData, parsedQuery) {
 }
 
 /**
- * Create detailed descriptions
+ * Helper functions
  */
-function createDetailedDescription(entity, entityType) {
+function determineSignificance(entity, entityType) {
+    if (entityType === 'drug') {
+        if (entity.isApproved) return 'Approved Drug';
+        if (entity.maximumClinicalTrialPhase >= 3) return 'Late-stage Development';
+        if (entity.maximumClinicalTrialPhase >= 1) return 'Clinical Development';
+        return 'Preclinical';
+    }
+    return 'Research Available';
+}
+
+function createDescription(entity, entityType) {
     const parts = [];
     
     if (entityType === 'drug') {
         if (entity.drugType) parts.push(`Type: ${entity.drugType}`);
         if (entity.maximumClinicalTrialPhase) parts.push(`Max Phase: ${entity.maximumClinicalTrialPhase}`);
-        if (entity.linkedDiseases?.count) parts.push(`Diseases: ${entity.linkedDiseases.count}`);
-        if (entity.linkedTargets?.count) parts.push(`Targets: ${entity.linkedTargets.count}`);
-    } else if (entityType === 'disease') {
-        if (entity.therapeuticAreas?.length) parts.push(`Areas: ${entity.therapeuticAreas.map(a => a.name).slice(0, 2).join(', ')}`);
-        if (entity.associatedTargets?.count) parts.push(`Targets: ${entity.associatedTargets.count}`);
-        if (entity.knownDrugs?.count) parts.push(`Drugs: ${entity.knownDrugs.count}`);
+        if (entity.synonyms?.length) parts.push(`Synonyms: ${entity.synonyms.slice(0, 2).join(', ')}`);
     } else if (entityType === 'target') {
         if (entity.approvedSymbol) parts.push(`Symbol: ${entity.approvedSymbol}`);
         if (entity.biotype) parts.push(`Type: ${entity.biotype}`);
-        if (entity.associatedDiseases?.count) parts.push(`Diseases: ${entity.associatedDiseases.count}`);
+    } else if (entityType === 'disease') {
+        if (entity.description) parts.push(entity.description.substring(0, 100) + '...');
     }
     
     return parts.length > 0 ? parts.join(' | ') : 'Open Targets research data';
 }
 
-/**
- * Extract phase information
- */
 function extractPhase(entity) {
     if (entity.maximumClinicalTrialPhase) {
         return `Phase ${entity.maximumClinicalTrialPhase}`;
     }
-    if (entity.clinicalTrialPhase) {
-        return `Phase ${entity.clinicalTrialPhase}`;
-    }
     return 'N/A';
 }
 
-/**
- * Determine status
- */
-function determineStatus(entity) {
-    if (entity.maximumClinicalTrialPhase === 4 || entity.isApproved) {
-        return 'Approved';
-    }
-    if (entity.maximumClinicalTrialPhase >= 1) {
-        return 'Clinical Development';
+function determineStatus(entity, entityType) {
+    if (entityType === 'drug') {
+        if (entity.isApproved) return 'Approved';
+        if (entity.maximumClinicalTrialPhase >= 1) return 'Clinical Development';
+        return 'Preclinical';
     }
     return 'Research Available';
 }
@@ -653,48 +441,41 @@ export default async function handler(req, res) {
     if (!query) {
         return res.status(400).json({ 
             error: 'Query parameter is required',
-            example: 'Try: "imatinib phase 2 diseases" or "Alzheimer disease targets"'
+            example: 'Try: "imatinib", "cancer", or "EGFR"'
         });
     }
 
     const startTime = performance.now();
 
     try {
-        console.log(`Open Targets comprehensive search for: "${query}"`);
-        
-        // Parse the user query intelligently
-        const parsedQuery = parseUserQuery(query);
-        console.log('Parsed query:', parsedQuery);
+        console.log(`OpenTargets search for: "${query}"`);
         
         // Execute comprehensive search
-        const searchResults = await comprehensiveSearch(parsedQuery, parseInt(limit));
+        const results = await comprehensiveOpenTargetsSearch(query, parseInt(limit));
         
         const endTime = performance.now();
         const responseTime = Math.round(endTime - startTime);
         
-        console.log(`Open Targets search completed: ${searchResults.results.length} results in ${responseTime}ms`);
+        console.log(`OpenTargets search completed: ${results.length} results in ${responseTime}ms`);
 
         return res.status(200).json({
-            results: searchResults.results,
-            total: searchResults.results.length,
+            results: results,
+            total: results.length,
             query: query,
-            parsed_query: parsedQuery,
             search_timestamp: new Date().toISOString(),
             response_time: responseTime,
             api_status: 'success',
-            data_source: 'Open Targets GraphQL API',
-            errors: searchResults.errors,
-            metadata: searchResults.metadata
+            data_source: 'Open Targets Platform GraphQL API'
         });
 
     } catch (error) {
         const endTime = performance.now();
         const responseTime = Math.round(endTime - startTime);
         
-        console.error('Open Targets API error:', error);
+        console.error('OpenTargets API error:', error);
         
         return res.status(500).json({
-            error: 'Open Targets API error',
+            error: 'OpenTargets API error',
             message: error.message,
             results: [],
             total: 0,
