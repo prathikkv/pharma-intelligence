@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, Download, Filter, Database, BarChart3, TrendingUp, AlertCircle, CheckCircle, Clock, Star, StarOff, Eye, EyeOff, Loader2, RefreshCw, ArrowUpDown, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, Download, Filter, Database, BarChart3, TrendingUp, AlertCircle, CheckCircle, Clock, Star, StarOff, Eye, EyeOff, Loader2, RefreshCw, ArrowUpDown, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react';
 
 const PharmaceuticalIntelligenceSystem = () => {
     // Core State Management
@@ -317,7 +317,9 @@ const PharmaceuticalIntelligenceSystem = () => {
             borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px'
         },
         resultsTitle: {
             fontSize: '1.25rem',
@@ -327,7 +329,8 @@ const PharmaceuticalIntelligenceSystem = () => {
         resultsControls: {
             display: 'flex',
             gap: '12px',
-            alignItems: 'center'
+            alignItems: 'center',
+            flexWrap: 'wrap'
         },
         controlInput: {
             padding: '8px 12px',
@@ -359,7 +362,8 @@ const PharmaceuticalIntelligenceSystem = () => {
         tableCell: {
             padding: '16px',
             fontSize: '0.875rem',
-            color: '#2d3748'
+            color: '#2d3748',
+            verticalAlign: 'top'
         },
         statusBadge: {
             display: 'inline-flex',
@@ -381,6 +385,10 @@ const PharmaceuticalIntelligenceSystem = () => {
             backgroundColor: '#faf089',
             color: '#744210'
         },
+        statusApproved: {
+            backgroundColor: '#d4edda',
+            color: '#155724'
+        },
         statusDefault: {
             backgroundColor: '#e2e8f0',
             color: '#4a5568'
@@ -391,7 +399,10 @@ const PharmaceuticalIntelligenceSystem = () => {
             borderRadius: '4px',
             fontSize: '0.75rem',
             cursor: 'pointer',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
         },
         bookmarkButton: {
             padding: '4px',
@@ -427,6 +438,20 @@ const PharmaceuticalIntelligenceSystem = () => {
             borderRadius: '12px',
             fontSize: '0.75rem',
             fontWeight: '500'
+        },
+        logContainer: {
+            backgroundColor: '#f7fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '20px'
+        },
+        logEntry: {
+            padding: '12px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '6px',
+            marginBottom: '8px'
         }
     };
 
@@ -519,7 +544,48 @@ const PharmaceuticalIntelligenceSystem = () => {
         setSelectedDatabases(databases.map(db => db.id));
     }, []);
 
-    // Production-Level Search Function
+    // Enhanced status priority for pharmaceutical research
+    const getEnhancedStatusPriority = useCallback((status) => {
+        if (!status) return 0;
+        const statusStr = status.toLowerCase();
+        if (statusStr.includes('recruiting')) return 10;
+        if (statusStr.includes('active') && !statusStr.includes('not')) return 9;
+        if (statusStr.includes('approved')) return 8;
+        if (statusStr.includes('enrolling')) return 8;
+        if (statusStr.includes('completed')) return 7;
+        if (statusStr.includes('available')) return 6;
+        if (statusStr.includes('published')) return 5;
+        if (statusStr.includes('pathogenic')) return 5;
+        if (statusStr.includes('likely pathogenic')) return 4;
+        if (statusStr.includes('terminated') || statusStr.includes('withdrawn')) return 1;
+        return 3;
+    }, []);
+
+    // Database priority for pharmaceutical research
+    const getDatabasePriority = useCallback((category, database) => {
+        if (category === 'Clinical') return 10;  // ClinicalTrials.gov
+        if (category === 'Drugs' || category === 'Chemistry') return 9;  // DrugBank, ChEMBL
+        if (category === 'Targets') return 8;  // Open Targets
+        if (category === 'Genetics') return 7;  // ClinVar
+        if (category === 'Proteins') return 6;  // UniProt, HPA
+        if (category === 'Pharmacology') return 6;  // IUPHAR
+        if (category === 'Literature') return 5;  // PubMed
+        if (category === 'Genomics') return 4;  // MGI
+        return 3;
+    }, []);
+
+    // Enhanced phase number extraction
+    const getPhaseNumber = useCallback((phase) => {
+        if (!phase) return 0;
+        const phaseStr = phase.toLowerCase();
+        if (phaseStr.includes('approved') || phaseStr.includes('phase iv') || phaseStr.includes('phase 4')) return 4;
+        if (phaseStr.includes('phase iii') || phaseStr.includes('phase 3')) return 3;
+        if (phaseStr.includes('phase ii') || phaseStr.includes('phase 2')) return 2;
+        if (phaseStr.includes('phase i') || phaseStr.includes('phase 1')) return 1;
+        return 0;
+    }, []);
+
+    // ENHANCED SEARCH FUNCTION - Production Level
     const executeSearch = useCallback(async () => {
         if (!searchQuery.trim()) {
             setError('Please enter a search query');
@@ -538,7 +604,6 @@ const PharmaceuticalIntelligenceSystem = () => {
         const searchStartTime = Date.now();
         const searchId = `search_${searchStartTime}`;
         
-        // Add search to logs
         const logEntry = {
             id: searchId,
             query: searchQuery,
@@ -549,118 +614,269 @@ const PharmaceuticalIntelligenceSystem = () => {
         setSearchLogs(prev => [logEntry, ...prev]);
 
         try {
-            // Execute parallel searches for better performance
+            console.log(`🔍 GRID Search: "${searchQuery}" across ${selectedDatabases.length} databases`);
+            
+            // ENHANCED parallel search with better limits and error handling
             const searchPromises = selectedDatabases.map(async (dbId) => {
                 const database = databases.find(db => db.id === dbId);
+                const dbStartTime = Date.now();
+                
                 try {
-                    const response = await fetch(`${database.endpoint}?query=${encodeURIComponent(searchQuery)}`, {
+                    // INCREASED LIMITS for comprehensive results
+                    const limits = {
+                        'clinicaltrials': 1000,  // ClinicalTrials can handle large requests
+                        'opentargets': 300,      // Our enhanced Open Targets
+                        'chembl': 200,           // ChEMBL comprehensive search
+                        'pubmed': 100,           // PubMed rate limited
+                        'clinvar': 150,          // ClinVar genetic variants
+                        'drugbank': 100,         // DrugBank drug data
+                        'uniprot': 200,          // UniProt proteins
+                        'hpa': 100,              // Human Protein Atlas
+                        'mgi': 100,              // Mouse Genome Informatics
+                        'iuphar': 100            // IUPHAR/BPS pharmacology
+                    };
+                    
+                    const queryParams = new URLSearchParams({
+                        query: searchQuery,
+                        limit: (limits[dbId] || 200).toString(),
+                        format: 'json'
+                    });
+                    
+                    console.log(`📡 Querying ${database.name} (limit: ${limits[dbId] || 200})...`);
+                    
+                    const response = await fetch(`${database.endpoint}?${queryParams}`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'User-Agent': 'GRID-Intelligence/3.0'
                         },
+                        signal: AbortSignal.timeout(45000) // Increased timeout for comprehensive searches
                     });
 
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
 
                     const data = await response.json();
+                    const dbEndTime = Date.now();
                     
-                    // Normalize data structure across different APIs
+                    // ENHANCED result processing
+                    let processedResults = [];
+                    
+                    if (data.results && Array.isArray(data.results)) {
+                        processedResults = data.results.map(item => ({
+                            ...item,
+                            _database: dbId,
+                            _databaseName: database.name,
+                            _searchTime: dbEndTime - dbStartTime,
+                            _id: `${dbId}_${item.id || item.nct_id || item.chembl_id || Math.random()}`,
+                            _icon: database.icon,
+                            _category: database.category,
+                            // STANDARDIZED fields across all databases
+                            title: item.title || item.brief_title || item.name || item.pref_name || 'No title',
+                            status: item.status || item.overall_status || item.status_significance || item.clinical_significance || 'Unknown',
+                            phase: item.phase || item.phases?.[0] || item.max_phase || 'N/A',
+                            sponsor: item.sponsor || item.lead_sponsor || item.source || 'Unknown',
+                            year: item.year || item.publication_year || new Date(item.start_date || Date.now()).getFullYear(),
+                            link: item.link || item.url || item.study_url || '#',
+                            // Additional standardized fields
+                            description: item.details || item.brief_summary || item.description || '',
+                            enrollment: item.enrollment || item.enrollment_count || 'N/A',
+                            conditions: item.conditions || item.condition_summary || [],
+                            interventions: item.interventions || item.intervention_summary || []
+                        }));
+                    }
+                    
+                    console.log(`✅ ${database.name}: ${processedResults.length} results (${dbEndTime - dbStartTime}ms)`);
+                    
                     return {
                         database: dbId,
                         databaseName: database.name,
-                        results: data.results || data.data || [],
-                        total: data.total || data.count || 0,
+                        results: processedResults,
+                        total: data.total || data.count || processedResults.length,
+                        searchTime: dbEndTime - dbStartTime,
+                        success: true,
+                        apiStatus: data.api_status || 'success',
                         metadata: {
-                            searchTime: Date.now() - searchStartTime,
-                            source: database.name
+                            searchStrategies: data.search_strategies || [],
+                            responseTime: data.response_time || (dbEndTime - dbStartTime),
+                            dataSource: data.data_source || database.name
                         }
                     };
+                    
                 } catch (error) {
-                    console.error(`Error searching ${database.name}:`, error);
+                    const dbEndTime = Date.now();
+                    console.error(`❌ ${database.name} failed:`, error.message);
+                    
                     return {
                         database: dbId,
                         databaseName: database.name,
                         results: [],
                         total: 0,
+                        searchTime: dbEndTime - dbStartTime,
+                        success: false,
                         error: error.message,
-                        metadata: {
-                            searchTime: Date.now() - searchStartTime,
-                            source: database.name
-                        }
+                        errorType: error.name
                     };
                 }
             });
 
-            const searchResults = await Promise.all(searchPromises);
+            // Wait for all searches with progress tracking
+            const searchResults = await Promise.allSettled(searchPromises);
             
-            // Combine and enhance results
-            const combinedResults = searchResults.reduce((acc, result) => {
-                if (result.results && result.results.length > 0) {
-                    const enhancedResults = result.results.map(item => ({
-                        ...item,
-                        _database: result.database,
-                        _databaseName: result.databaseName,
-                        _searchTime: result.metadata.searchTime,
-                        _id: `${result.database}_${item.id || Math.random()}`
-                    }));
-                    acc.push(...enhancedResults);
+            // ENHANCED result processing and aggregation
+            const successfulResults = [];
+            const failedResults = [];
+            let totalResults = 0;
+            
+            searchResults.forEach((result) => {
+                if (result.status === 'fulfilled') {
+                    const dbResult = result.value;
+                    if (dbResult.success && dbResult.results.length > 0) {
+                        successfulResults.push(dbResult);
+                        totalResults += dbResult.results.length;
+                    } else if (!dbResult.success) {
+                        failedResults.push(dbResult);
+                    }
+                } else {
+                    failedResults.push({
+                        error: result.reason.message,
+                        databaseName: 'Unknown'
+                    });
                 }
+            });
+            
+            // Combine all results with intelligent sorting
+            const combinedResults = successfulResults.reduce((acc, dbResult) => {
+                acc.push(...dbResult.results);
                 return acc;
             }, []);
-
+            
+            // INTELLIGENT SORTING for pharmaceutical research
+            combinedResults.sort((a, b) => {
+                // Priority 1: Clinical relevance (Active/Recruiting trials first)
+                const statusPriorityA = getEnhancedStatusPriority(a.status);
+                const statusPriorityB = getEnhancedStatusPriority(b.status);
+                if (statusPriorityA !== statusPriorityB) {
+                    return statusPriorityB - statusPriorityA;
+                }
+                
+                // Priority 2: Database relevance for drug research
+                const dbPriorityA = getDatabasePriority(a._category, a._database);
+                const dbPriorityB = getDatabasePriority(b._category, b._database);
+                if (dbPriorityA !== dbPriorityB) {
+                    return dbPriorityB - dbPriorityA;
+                }
+                
+                // Priority 3: Clinical phase (higher phases first)
+                const phaseA = getPhaseNumber(a.phase);
+                const phaseB = getPhaseNumber(b.phase);
+                if (phaseA !== phaseB) {
+                    return phaseB - phaseA;
+                }
+                
+                // Priority 4: Recency
+                return (b.year || 0) - (a.year || 0);
+            });
+            
             setResults(combinedResults);
             
-            // Update search log
+            // COMPREHENSIVE search logging
+            const searchEndTime = Date.now();
+            const totalSearchTime = searchEndTime - searchStartTime;
+            
             setSearchLogs(prev => prev.map(log => 
                 log.id === searchId 
                     ? { 
                         ...log, 
                         status: 'completed',
                         resultsCount: combinedResults.length,
-                        duration: Date.now() - searchStartTime,
+                        duration: totalSearchTime,
                         databases: searchResults.map(r => ({
-                            name: r.databaseName,
-                            count: r.total,
-                            error: r.error
-                        }))
+                            name: r.status === 'fulfilled' ? r.value.databaseName : 'Unknown',
+                            count: r.status === 'fulfilled' ? r.value.total : 0,
+                            error: r.status === 'fulfilled' ? r.value.error : r.reason?.message,
+                            searchTime: r.status === 'fulfilled' ? r.value.searchTime : 0,
+                            apiStatus: r.status === 'fulfilled' ? r.value.apiStatus : 'failed'
+                        })),
+                        summary: {
+                            successful: successfulResults.length,
+                            failed: failedResults.length,
+                            totalResults: combinedResults.length,
+                            avgSearchTime: Math.round(totalSearchTime / selectedDatabases.length),
+                            fastestDb: successfulResults.sort((a, b) => a.searchTime - b.searchTime)[0]?.databaseName,
+                            slowestDb: successfulResults.sort((a, b) => b.searchTime - a.searchTime)[0]?.databaseName
+                        }
                     }
                     : log
             ));
+            
+            // SUCCESS REPORTING
+            console.log(`🎉 GRID Search Completed Successfully!`);
+            console.log(`📊 Results: ${combinedResults.length} total`);
+            console.log(`✅ Successful databases: ${successfulResults.length}/${selectedDatabases.length}`);
+            console.log(`⏱️ Total time: ${totalSearchTime}ms`);
+            console.log(`🔥 Top databases: ${successfulResults.slice(0, 3).map(r => `${r.databaseName}(${r.total})`).join(', ')}`);
+            
+            if (failedResults.length > 0) {
+                console.warn(`⚠️ Failed databases: ${failedResults.map(f => f.databaseName).join(', ')}`);
+            }
+            
+            // User feedback for zero results
+            if (combinedResults.length === 0) {
+                setError(
+                    `No results found for "${searchQuery}". ` +
+                    `${failedResults.length > 0 ? `${failedResults.length} databases had errors. ` : ''}` +
+                    `💡 Try: (1) Broader terms like "cancer" or "diabetes", (2) Drug names like "imatinib", (3) Different databases.`
+                );
+            } else if (combinedResults.length < 10) {
+                console.log(`💡 Tip: Try broader search terms for more results`);
+            }
 
         } catch (error) {
-            console.error('Search execution error:', error);
-            setError(`Search failed: ${error.message}`);
+            const searchEndTime = Date.now();
+            const totalSearchTime = searchEndTime - searchStartTime;
             
-            // Update search log with error
+            console.error('🚨 GRID Search failed:', error);
+            setError(`Search failed: ${error.message}. Please try a different query or check your connection.`);
+            
             setSearchLogs(prev => prev.map(log => 
                 log.id === searchId 
                     ? { 
                         ...log, 
                         status: 'failed',
                         error: error.message,
-                        duration: Date.now() - searchStartTime
+                        duration: totalSearchTime
                     }
                     : log
             ));
         } finally {
             setLoading(false);
         }
-    }, [searchQuery, selectedDatabases]);
+    }, [searchQuery, selectedDatabases, getEnhancedStatusPriority, getDatabasePriority, getPhaseNumber]);
 
     // Enhanced Filtering and Sorting
-    const filteredAndSortedResults = useMemo(() => {
+    const enhancedFilteredResults = useMemo(() => {
         let filtered = [...results];
-
-        // Apply search within results
+        
+        // Enhanced filtering with better search logic
         if (searchWithinResults) {
-            const searchTerm = searchWithinResults.toLowerCase();
-            filtered = filtered.filter(item => 
-                Object.values(item).some(value => 
-                    value && value.toString().toLowerCase().includes(searchTerm)
-                )
-            );
+            const searchTerms = searchWithinResults.toLowerCase().split(' ');
+            filtered = filtered.filter(item => {
+                const searchableText = [
+                    item.title,
+                    item.brief_title,
+                    item.condition_summary,
+                    item.intervention_summary,
+                    item.sponsor,
+                    item.phase,
+                    item.status,
+                    item._databaseName
+                ].join(' ').toLowerCase();
+                
+                return searchTerms.every(term => searchableText.includes(term));
+            });
         }
 
         // Apply database filter
@@ -684,40 +900,89 @@ const PharmaceuticalIntelligenceSystem = () => {
         return filtered;
     }, [results, searchWithinResults, databaseFilter, sortConfig]);
 
-    // Analytics and Insights
-    const analytics = useMemo(() => {
-        const databaseDistribution = databases.map(db => ({
-            name: db.name,
-            count: results.filter(item => item._database === db.id).length,
-            icon: db.icon
-        })).filter(db => db.count > 0);
+    // Enhanced Analytics and Insights
+    const enhancedAnalytics = useMemo(() => {
+        const analysisResults = enhancedFilteredResults;
+        
+        // Database distribution with enhanced data
+        const databaseDistribution = databases.map(db => {
+            const dbResults = analysisResults.filter(item => item._database === db.id);
+            return {
+                name: db.name,
+                count: dbResults.length,
+                icon: db.icon,
+                category: db.category,
+                percentage: analysisResults.length > 0 ? Math.round((dbResults.length / analysisResults.length) * 100) : 0
+            };
+        }).filter(db => db.count > 0).sort((a, b) => b.count - a.count);
 
-        const statusDistribution = results.reduce((acc, item) => {
-            const status = item.status || 'Unknown';
+        // Enhanced status distribution
+        const statusDistribution = analysisResults.reduce((acc, item) => {
+            const status = item.status || item.overall_status || 'Unknown';
             acc[status] = (acc[status] || 0) + 1;
             return acc;
         }, {});
 
-        const phaseDistribution = results.reduce((acc, item) => {
-            const phase = item.phase || 'Unknown';
+        // Enhanced phase distribution with better parsing
+        const phaseDistribution = analysisResults.reduce((acc, item) => {
+            let phase = item.phase || 'Unknown';
+            // Normalize phase names
+            if (phase.includes('Phase I') && !phase.includes('Phase II')) phase = 'Phase I';
+            else if (phase.includes('Phase II') && !phase.includes('Phase III')) phase = 'Phase II';
+            else if (phase.includes('Phase III') && !phase.includes('Phase IV')) phase = 'Phase III';
+            else if (phase.includes('Phase IV')) phase = 'Phase IV';
+            else if (phase.includes('Approved')) phase = 'Approved';
+            else if (phase === 'N/A' || phase === 'Not specified') phase = 'Not specified';
+            
             acc[phase] = (acc[phase] || 0) + 1;
             return acc;
         }, {});
 
+        // Top sponsors with better data
+        const sponsorDistribution = Object.entries(
+            analysisResults.reduce((acc, item) => {
+                const sponsor = item.sponsor || item.lead_sponsor || 'Unknown';
+                acc[sponsor] = (acc[sponsor] || 0) + 1;
+                return acc;
+            }, {})
+        ).sort(([,a], [,b]) => b - a).slice(0, 10);
+
+        // Year distribution for trending analysis
+        const yearDistribution = analysisResults.reduce((acc, item) => {
+            const year = item.year || new Date().getFullYear();
+            acc[year] = (acc[year] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Recent years for trending
+        const currentYear = new Date().getFullYear();
+        const recentYears = Object.entries(yearDistribution)
+            .filter(([year]) => parseInt(year) >= currentYear - 5)
+            .sort(([a], [b]) => b - a);
+
         return {
-            total: results.length,
+            total: analysisResults.length,
             databaseDistribution,
             statusDistribution,
             phaseDistribution,
-            topSponsors: Object.entries(
-                results.reduce((acc, item) => {
-                    const sponsor = item.sponsor || 'Unknown';
-                    acc[sponsor] = (acc[sponsor] || 0) + 1;
-                    return acc;
-                }, {})
-            ).sort(([,a], [,b]) => b - a).slice(0, 5)
+            sponsorDistribution,
+            yearDistribution,
+            recentYears,
+            summary: {
+                activeStudies: analysisResults.filter(r => 
+                    (r.status || '').toLowerCase().includes('recruiting') || 
+                    (r.status || '').toLowerCase().includes('active')
+                ).length,
+                recentStudies: analysisResults.filter(r => 
+                    (r.year || 0) >= currentYear - 2
+                ).length,
+                approvedDrugs: analysisResults.filter(r => 
+                    (r.phase || '').toLowerCase().includes('approved') ||
+                    (r.status || '').toLowerCase().includes('approved')
+                ).length
+            }
         };
-    }, [results]);
+    }, [enhancedFilteredResults]);
 
     // Bookmark Management
     const toggleBookmark = useCallback((resultId) => {
@@ -731,17 +996,26 @@ const PharmaceuticalIntelligenceSystem = () => {
         });
     }, []);
 
-    // Export Functionality
+    // Enhanced Export Functionality
     const exportResults = useCallback(() => {
-        const csvHeaders = ['Database', 'Title', 'ID', 'Status', 'Phase', 'Sponsor', 'Date'];
-        const csvData = filteredAndSortedResults.map(item => [
-            item._databaseName,
-            item.title || item.brief_title || 'N/A',
-            item.id || item.nct_id || 'N/A',
+        const timestamp = new Date().toISOString().split('T')[0];
+        const csvHeaders = [
+            'Database', 'Title', 'ID', 'Status', 'Phase', 'Sponsor', 'Year', 
+            'Enrollment', 'Conditions', 'Link', 'Search_Time_MS'
+        ];
+        
+        const csvData = enhancedFilteredResults.map(item => [
+            item._databaseName || 'Unknown',
+            (item.title || item.brief_title || 'N/A').replace(/"/g, '""'),
+            item.id || item.nct_id || item.chembl_id || 'N/A',
             item.status || 'N/A',
             item.phase || 'N/A',
             item.sponsor || 'N/A',
-            item.start_date || item.study_first_submitted_date || 'N/A'
+            item.year || 'N/A',
+            item.enrollment || 'N/A',
+            Array.isArray(item.conditions) ? item.conditions.slice(0,3).join('; ') : (item.condition_summary || 'N/A'),
+            item.link || item.url || 'N/A',
+            item._searchTime || 'N/A'
         ]);
 
         const csvContent = [csvHeaders, ...csvData]
@@ -751,23 +1025,29 @@ const PharmaceuticalIntelligenceSystem = () => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `pharma_intelligence_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = `GRID_pharmaceutical_research_${timestamp}_${enhancedFilteredResults.length}results.csv`;
+        document.body.appendChild(link);
         link.click();
-    }, [filteredAndSortedResults]);
+        document.body.removeChild(link);
+        
+        console.log(`📊 Exported ${enhancedFilteredResults.length} results to CSV`);
+    }, [enhancedFilteredResults]);
 
     // Get status badge style
     const getStatusBadgeStyle = (status) => {
         const baseStyle = styles.statusBadge;
-        switch (status?.toLowerCase()) {
-            case 'recruiting':
-            case 'active':
-                return { ...baseStyle, ...styles.statusActive };
-            case 'completed':
-                return { ...baseStyle, ...styles.statusCompleted };
-            case 'not yet recruiting':
-                return { ...baseStyle, ...styles.statusRecruiting };
-            default:
-                return { ...baseStyle, ...styles.statusDefault };
+        const statusLower = (status || '').toLowerCase();
+        
+        if (statusLower.includes('recruiting') || statusLower.includes('active')) {
+            return { ...baseStyle, ...styles.statusActive };
+        } else if (statusLower.includes('completed')) {
+            return { ...baseStyle, ...styles.statusCompleted };
+        } else if (statusLower.includes('not yet recruiting')) {
+            return { ...baseStyle, ...styles.statusRecruiting };
+        } else if (statusLower.includes('approved')) {
+            return { ...baseStyle, ...styles.statusApproved };
+        } else {
+            return { ...baseStyle, ...styles.statusDefault };
         }
     };
 
@@ -838,15 +1118,15 @@ const PharmaceuticalIntelligenceSystem = () => {
         </div>
     );
 
-    // Analytics Display
-    const renderAnalytics = () => {
+    // Enhanced Analytics Display
+    const renderEnhancedAnalytics = () => {
         if (results.length === 0) return null;
 
         return (
             <div style={styles.analyticsContainer}>
                 <h3 style={styles.analyticsTitle}>
                     <BarChart3 size={20} />
-                    Search Analytics
+                    Comprehensive Search Analytics
                 </h3>
                 
                 <div style={styles.analyticsGrid}>
@@ -854,13 +1134,18 @@ const PharmaceuticalIntelligenceSystem = () => {
                     <div style={styles.analyticsSection}>
                         <h4 style={styles.analyticsSectionTitle}>Database Distribution</h4>
                         <div>
-                            {analytics.databaseDistribution.map((db) => (
+                            {enhancedAnalytics.databaseDistribution.map((db) => (
                                 <div key={db.name} style={styles.analyticsItem}>
                                     <div style={styles.analyticsLabel}>
                                         <span>{db.icon}</span>
                                         <span>{db.name}</span>
                                     </div>
-                                    <span style={styles.analyticsValue}>{db.count}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={styles.analyticsValue}>{db.count}</span>
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)' }}>
+                                            ({db.percentage}%)
+                                        </span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -870,7 +1155,10 @@ const PharmaceuticalIntelligenceSystem = () => {
                     <div style={styles.analyticsSection}>
                         <h4 style={styles.analyticsSectionTitle}>Status Distribution</h4>
                         <div>
-                            {Object.entries(analytics.statusDistribution).map(([status, count]) => (
+                            {Object.entries(enhancedAnalytics.statusDistribution)
+                                .sort(([,a], [,b]) => b - a)
+                                .slice(0, 6)
+                                .map(([status, count]) => (
                                 <div key={status} style={styles.analyticsItem}>
                                     <span style={styles.analyticsLabel}>{status}</span>
                                     <span style={styles.analyticsValue}>{count}</span>
@@ -883,7 +1171,9 @@ const PharmaceuticalIntelligenceSystem = () => {
                     <div style={styles.analyticsSection}>
                         <h4 style={styles.analyticsSectionTitle}>Phase Distribution</h4>
                         <div>
-                            {Object.entries(analytics.phaseDistribution).map(([phase, count]) => (
+                            {Object.entries(enhancedAnalytics.phaseDistribution)
+                                .sort(([,a], [,b]) => b - a)
+                                .map(([phase, count]) => (
                                 <div key={phase} style={styles.analyticsItem}>
                                     <span style={styles.analyticsLabel}>{phase}</span>
                                     <span style={styles.analyticsValue}>{count}</span>
@@ -891,25 +1181,260 @@ const PharmaceuticalIntelligenceSystem = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* Key Insights */}
+                    <div style={styles.analyticsSection}>
+                        <h4 style={styles.analyticsSectionTitle}>Key Insights</h4>
+                        <div>
+                            <div style={styles.analyticsItem}>
+                                <span style={styles.analyticsLabel}>
+                                    <TrendingUp size={16} />
+                                    Active Studies
+                                </span>
+                                <span style={styles.analyticsValue}>{enhancedAnalytics.summary.activeStudies}</span>
+                            </div>
+                            <div style={styles.analyticsItem}>
+                                <span style={styles.analyticsLabel}>
+                                    <Clock size={16} />
+                                    Recent (2023+)
+                                </span>
+                                <span style={styles.analyticsValue}>{enhancedAnalytics.summary.recentStudies}</span>
+                            </div>
+                            <div style={styles.analyticsItem}>
+                                <span style={styles.analyticsLabel}>
+                                    <CheckCircle size={16} />
+                                    Approved
+                                </span>
+                                <span style={styles.analyticsValue}>{enhancedAnalytics.summary.approvedDrugs}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
-                        Total Results: {analytics.total}
+                        Total Results: {enhancedAnalytics.total}
                     </span>
-                    <button
-                        onClick={exportResults}
-                        style={{
-                            ...styles.primaryButton,
-                            backgroundColor: '#38a169',
-                            color: '#ffffff'
-                        }}
-                        onMouseEnter={(e) => e.target.style.backgroundColor = '#2f855a'}
-                        onMouseLeave={(e) => e.target.style.backgroundColor = '#38a169'}
-                    >
-                        <Download size={16} />
-                        <span>Export CSV</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={() => {
+                                console.log('Enhanced Analytics Data:', enhancedAnalytics);
+                                alert('Analytics data logged to console for further analysis');
+                            }}
+                            style={{
+                                ...styles.primaryButton,
+                                backgroundColor: '#6366f1',
+                                color: '#ffffff'
+                            }}
+                        >
+                            <BarChart3 size={16} />
+                            <span>View Details</span>
+                        </button>
+                        <button
+                            onClick={exportResults}
+                            style={{
+                                ...styles.primaryButton,
+                                backgroundColor: '#38a169',
+                                color: '#ffffff'
+                            }}
+                        >
+                            <Download size={16} />
+                            <span>Export CSV</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Enhanced Results Table
+    const renderEnhancedResultsTable = () => {
+        if (enhancedFilteredResults.length === 0) return null;
+
+        return (
+            <div style={styles.resultsContainer}>
+                <div style={styles.resultsHeader}>
+                    <h3 style={styles.resultsTitle}>
+                        Search Results ({enhancedFilteredResults.length})
+                    </h3>
+                    <div style={styles.resultsControls}>
+                        <input
+                            type="text"
+                            value={searchWithinResults}
+                            onChange={(e) => setSearchWithinResults(e.target.value)}
+                            placeholder="Search within results..."
+                            style={styles.controlInput}
+                        />
+                        <select
+                            value={databaseFilter}
+                            onChange={(e) => setDatabaseFilter(e.target.value)}
+                            style={styles.controlInput}
+                        >
+                            <option value="">All Databases</option>
+                            {databases.map(db => (
+                                <option key={db.id} value={db.id}>
+                                    {db.name} ({results.filter(r => r._database === db.id).length})
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={exportResults}
+                            style={{
+                                ...styles.actionButton,
+                                backgroundColor: '#38a169',
+                                color: '#ffffff'
+                            }}
+                        >
+                            <Download size={16} />
+                            Export
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={styles.table}>
+                        <thead style={styles.tableHeader}>
+                            <tr>
+                                <th style={styles.tableHeaderCell}>Database</th>
+                                <th style={styles.tableHeaderCell}>Study Details</th>
+                                <th style={styles.tableHeaderCell}>Status & Phase</th>
+                                <th style={styles.tableHeaderCell}>Sponsor</th>
+                                <th style={styles.tableHeaderCell}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {enhancedFilteredResults.map((result) => (
+                                <tr 
+                                    key={result._id} 
+                                    style={styles.tableRow}
+                                    onMouseEnter={(e) => e.target.parentElement.style.backgroundColor = '#f7fafc'}
+                                    onMouseLeave={(e) => e.target.parentElement.style.backgroundColor = 'transparent'}
+                                >
+                                    <td style={styles.tableCell}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '1.125rem' }}>
+                                                {result._icon}
+                                            </span>
+                                            <div>
+                                                <div style={{ fontSize: '0.875rem', fontWeight: '500' }}>
+                                                    {result._databaseName}
+                                                </div>
+                                                <div style={{ fontSize: '0.75rem', color: '#718096' }}>
+                                                    {result._category}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style={styles.tableCell}>
+                                        <div>
+                                            <div style={{ fontSize: '0.875rem', color: '#2d3748', marginBottom: '4px', fontWeight: '500' }}>
+                                                <a 
+                                                    href={result.link || result.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    style={{ color: '#4299e1', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                    onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                                    onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                                >
+                                                    {result.title || result.brief_title || 'View Study'}
+                                                    <ExternalLink size={12} />
+                                                </a>
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '2px' }}>
+                                                ID: {result.id || result.nct_id || 'N/A'}
+                                            </div>
+                                            {result.condition_summary && (
+                                                <div style={{ fontSize: '0.75rem', color: '#4a5568' }}>
+                                                    Conditions: {result.condition_summary}
+                                                </div>
+                                            )}
+                                            {result.intervention_summary && (
+                                                <div style={{ fontSize: '0.75rem', color: '#4a5568' }}>
+                                                    Interventions: {result.intervention_summary}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td style={styles.tableCell}>
+                                        <div>
+                                            <span style={getStatusBadgeStyle(result.status || result.overall_status)}>
+                                                {result.status || result.overall_status || 'Unknown'}
+                                            </span>
+                                            <div style={{ fontSize: '0.75rem', color: '#718096', marginTop: '4px' }}>
+                                                {result.phase || 'N/A'}
+                                            </div>
+                                            {result.year && (
+                                                <div style={{ fontSize: '0.75rem', color: '#718096' }}>
+                                                    Year: {result.year}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td style={styles.tableCell}>
+                                        <div style={{ fontSize: '0.875rem' }}>
+                                            {result.sponsor || result.lead_sponsor || 'Unknown'}
+                                        </div>
+                                        {result.enrollment && result.enrollment !== 'N/A' && (
+                                            <div style={{ fontSize: '0.75rem', color: '#718096' }}>
+                                                Enrollment: {result.enrollment}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td style={styles.tableCell}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                                onClick={() => toggleBookmark(result._id)}
+                                                style={bookmarkedResults.includes(result._id) ? styles.bookmarkButtonActive : styles.bookmarkButton}
+                                                title={bookmarkedResults.includes(result._id) ? 'Remove bookmark' : 'Add bookmark'}
+                                            >
+                                                {bookmarkedResults.includes(result._id) ? 
+                                                    <Star size={16} fill="currentColor" /> : 
+                                                    <StarOff size={16} />
+                                                }
+                                            </button>
+                                            <button
+                                                onClick={() => setExpandedResult(
+                                                    expandedResult === result._id ? null : result._id
+                                                )}
+                                                style={{
+                                                    ...styles.actionButton,
+                                                    backgroundColor: '#4299e1',
+                                                    color: '#ffffff'
+                                                }}
+                                                title="View details"
+                                            >
+                                                {expandedResult === result._id ? 
+                                                    <ChevronUp size={16} /> : 
+                                                    <ChevronDown size={16} />
+                                                }
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {/* Pagination info */}
+                <div style={{ 
+                    padding: '16px', 
+                    borderTop: '1px solid #e2e8f0', 
+                    backgroundColor: '#f7fafc',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '0.875rem',
+                    color: '#4a5568',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                }}>
+                    <span>
+                        Showing {enhancedFilteredResults.length} of {results.length} results
+                    </span>
+                    <span>
+                        Search completed in {searchLogs[0]?.duration || 0}ms
+                    </span>
                 </div>
             </div>
         );
@@ -920,10 +1445,10 @@ const PharmaceuticalIntelligenceSystem = () => {
             {/* Header */}
             <div style={styles.header}>
                 <h1 style={styles.title}>
-                    Pharmaceutical Intelligence System
+                    GRID - Global Research Intelligence Database
                 </h1>
                 <p style={styles.subtitle}>
-                    Advanced multi-database search and analysis platform for pharmaceutical research
+                    Advanced multi-database pharmaceutical intelligence platform • Now returning 100s-1000s of comprehensive results
                 </p>
             </div>
 
@@ -956,7 +1481,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Enter your research query (e.g., 'Alzheimer disease trials', 'BRCA1 mutations')"
+                                    placeholder="Enter your research query (e.g., 'imatinib cancer phase 2', 'Alzheimer disease trials', 'BRCA1 mutations')"
                                     style={styles.searchInput}
                                     onKeyPress={(e) => e.key === 'Enter' && executeSearch()}
                                     onFocus={(e) => e.target.style.borderColor = '#4299e1'}
@@ -985,19 +1510,19 @@ const PharmaceuticalIntelligenceSystem = () => {
                                 {loading ? (
                                     <>
                                         <Loader2 className="animate-spin" size={20} style={{ animation: 'spin 1s linear infinite' }} />
-                                        <span>Searching...</span>
+                                        <span>Searching {selectedDatabases.length} databases...</span>
                                     </>
                                 ) : (
                                     <>
                                         <Search size={20} />
-                                        <span>Execute AI Analysis</span>
+                                        <span>Execute Comprehensive Search</span>
                                     </>
                                 )}
                             </button>
                         </div>
 
                         {/* Search Controls */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.875rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.875rem', flexWrap: 'wrap' }}>
                             <button
                                 onClick={() => setShowLogs(!showLogs)}
                                 style={{
@@ -1011,8 +1536,13 @@ const PharmaceuticalIntelligenceSystem = () => {
                                 }}
                             >
                                 {showLogs ? <EyeOff size={16} /> : <Eye size={16} />}
-                                <span>{showLogs ? 'Hide' : 'Show'} Logs</span>
+                                <span>{showLogs ? 'Hide' : 'Show'} Search Logs</span>
                             </button>
+                            {searchLogs.length > 0 && (
+                                <span style={{ color: '#4a5568' }}>
+                                    Last search: {searchLogs[0]?.resultsCount || 0} results in {searchLogs[0]?.duration || 0}ms
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -1026,9 +1556,9 @@ const PharmaceuticalIntelligenceSystem = () => {
 
                     {/* Logs Display */}
                     {showLogs && searchLogs.length > 0 && (
-                        <div style={{ ...styles.searchContainer, marginBottom: '30px' }}>
+                        <div style={styles.logContainer}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#2d3748' }}>Search History & Logs</h3>
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#2d3748' }}>Search History & Performance Logs</h3>
                                 <button
                                     onClick={() => setShowLogs(false)}
                                     style={{ background: 'none', border: 'none', color: '#a0aec0', cursor: 'pointer' }}
@@ -1037,16 +1567,10 @@ const PharmaceuticalIntelligenceSystem = () => {
                                 </button>
                             </div>
                             
-                            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                                {searchLogs.map((log) => (
-                                    <div key={log.id} style={{ 
-                                        padding: '12px', 
-                                        backgroundColor: '#ffffff', 
-                                        border: '1px solid #e2e8f0', 
-                                        borderRadius: '6px',
-                                        marginBottom: '8px'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                {searchLogs.slice(0, 5).map((log) => (
+                                    <div key={log.id} style={styles.logEntry}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 {log.status === 'running' && <Loader2 style={{ color: '#4299e1', animation: 'spin 1s linear infinite' }} size={16} />}
                                                 {log.status === 'completed' && <CheckCircle style={{ color: '#38a169' }} size={16} />}
@@ -1058,9 +1582,10 @@ const PharmaceuticalIntelligenceSystem = () => {
                                             </span>
                                         </div>
                                         
-                                        {log.resultsCount !== undefined && (
-                                            <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#718096' }}>
-                                                Found {log.resultsCount} results in {log.duration}ms
+                                        {log.summary && (
+                                            <div style={{ fontSize: '0.75rem', color: '#4a5568' }}>
+                                                <div>📊 {log.summary.totalResults} results from {log.summary.successful}/{log.summary.successful + log.summary.failed} databases</div>
+                                                <div>⏱️ Average: {log.summary.avgSearchTime}ms | Fastest: {log.summary.fastestDb} | Slowest: {log.summary.slowestDb}</div>
                                             </div>
                                         )}
                                         
@@ -1076,129 +1601,22 @@ const PharmaceuticalIntelligenceSystem = () => {
                     )}
 
                     {/* Analytics */}
-                    {renderAnalytics()}
+                    {renderEnhancedAnalytics()}
 
                     {/* Results Table */}
-                    {filteredAndSortedResults.length > 0 && (
-                        <div style={styles.resultsContainer}>
-                            <div style={styles.resultsHeader}>
-                                <h3 style={styles.resultsTitle}>
-                                    Search Results ({filteredAndSortedResults.length})
-                                </h3>
-                                <div style={styles.resultsControls}>
-                                    <input
-                                        type="text"
-                                        value={searchWithinResults}
-                                        onChange={(e) => setSearchWithinResults(e.target.value)}
-                                        placeholder="Search within results..."
-                                        style={styles.controlInput}
-                                    />
-                                    <select
-                                        value={databaseFilter}
-                                        onChange={(e) => setDatabaseFilter(e.target.value)}
-                                        style={styles.controlInput}
-                                    >
-                                        <option value="">All Databases</option>
-                                        {databases.map(db => (
-                                            <option key={db.id} value={db.id}>
-                                                {db.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={styles.table}>
-                                    <thead style={styles.tableHeader}>
-                                        <tr>
-                                            <th style={styles.tableHeaderCell}>Database</th>
-                                            <th style={styles.tableHeaderCell}>Title</th>
-                                            <th style={styles.tableHeaderCell}>Status</th>
-                                            <th style={styles.tableHeaderCell}>Phase</th>
-                                            <th style={styles.tableHeaderCell}>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredAndSortedResults.map((result) => (
-                                            <tr 
-                                                key={result._id} 
-                                                style={styles.tableRow}
-                                                onMouseEnter={(e) => e.target.parentElement.style.backgroundColor = '#f7fafc'}
-                                                onMouseLeave={(e) => e.target.parentElement.style.backgroundColor = 'transparent'}
-                                            >
-                                                <td style={styles.tableCell}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ fontSize: '1.125rem' }}>
-                                                            {databases.find(db => db.id === result._database)?.icon}
-                                                        </span>
-                                                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>
-                                                            {result._databaseName}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td style={styles.tableCell}>
-                                                    <div>
-                                                        <div style={{ fontSize: '0.875rem', color: '#2d3748', marginBottom: '2px' }}>
-                                                            {result.title || result.brief_title || 'N/A'}
-                                                        </div>
-                                                        <div style={{ fontSize: '0.75rem', color: '#718096' }}>
-                                                            ID: {result.id || result.nct_id || 'N/A'}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td style={styles.tableCell}>
-                                                    <span style={getStatusBadgeStyle(result.status)}>
-                                                        {result.status || 'Unknown'}
-                                                    </span>
-                                                </td>
-                                                <td style={styles.tableCell}>
-                                                    {result.phase || 'N/A'}
-                                                </td>
-                                                <td style={styles.tableCell}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <button
-                                                            onClick={() => toggleBookmark(result._id)}
-                                                            style={bookmarkedResults.includes(result._id) ? styles.bookmarkButtonActive : styles.bookmarkButton}
-                                                        >
-                                                            {bookmarkedResults.includes(result._id) ? 
-                                                                <Star size={16} fill="currentColor" /> : 
-                                                                <StarOff size={16} />
-                                                            }
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setExpandedResult(
-                                                                expandedResult === result._id ? null : result._id
-                                                            )}
-                                                            style={{
-                                                                ...styles.actionButton,
-                                                                backgroundColor: '#4299e1',
-                                                                color: '#ffffff'
-                                                            }}
-                                                        >
-                                                            {expandedResult === result._id ? 'Collapse' : 'Expand'}
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                    {renderEnhancedResultsTable()}
                 </>
             )}
 
             {/* Analytics Tab */}
             {activeTab === 'analytics' && (
                 <div>
-                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem' }}>Advanced Analytics</h2>
-                    {renderAnalytics()}
+                    <h2 style={{ ...styles.sectionTitle, fontSize: '2rem' }}>Advanced Analytics Dashboard</h2>
+                    {renderEnhancedAnalytics()}
                     {results.length === 0 && (
                         <div style={styles.emptyState}>
                             <BarChart3 size={48} style={styles.emptyStateIcon} />
-                            <p>No data available. Please perform a search first.</p>
+                            <p>No data available. Please perform a search first to see comprehensive analytics.</p>
                         </div>
                     )}
                 </div>
@@ -1211,7 +1629,7 @@ const PharmaceuticalIntelligenceSystem = () => {
                     {bookmarkedResults.length === 0 ? (
                         <div style={styles.emptyState}>
                             <Star size={48} style={styles.emptyStateIcon} />
-                            <p>No bookmarked results yet. Star results to save them here.</p>
+                            <p>No bookmarked results yet. Star results during your searches to save them here for future reference.</p>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1225,10 +1643,17 @@ const PharmaceuticalIntelligenceSystem = () => {
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <div style={{ flex: 1 }}>
                                             <h3 style={{ fontSize: '1rem', fontWeight: '500', color: '#2d3748', marginBottom: '4px' }}>
-                                                {result.title || result.brief_title || 'N/A'}
+                                                <a 
+                                                    href={result.link || result.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    style={{ color: '#4299e1', textDecoration: 'none' }}
+                                                >
+                                                    {result.title || result.brief_title || 'View Study'}
+                                                </a>
                                             </h3>
                                             <p style={{ fontSize: '0.875rem', color: '#718096' }}>
-                                                {result._databaseName} • {result.status || 'Unknown Status'}
+                                                {result._databaseName} • {result.status || 'Unknown Status'} • {result.phase || 'N/A'}
                                             </p>
                                         </div>
                                         <button
