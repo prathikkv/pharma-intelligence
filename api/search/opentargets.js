@@ -1,4 +1,4 @@
-// api/search/opentargets.js - WORKING VERSION starting with proven queries
+// api/search/opentargets.js - IMPROVED VERSION with fuzzy drug name matching
 export default async function handler(req, res) {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -34,8 +34,8 @@ export default async function handler(req, res) {
         let results = [];
         
         // For Imatinib specifically, let's test with the working approach
-        if (queryAnalysis.drugName && queryAnalysis.drugName.toLowerCase() === 'imatinib') {
-            console.log(`💊 Imatinib-specific search`);
+        if (queryAnalysis.drugName && (queryAnalysis.drugName.toLowerCase() === 'imatinib' || queryAnalysis.correctedDrugName === 'imatinib')) {
+            console.log(`💊 Imatinib-specific search (corrected: ${queryAnalysis.correctedDrugName || queryAnalysis.drugName})`);
             results = await searchImatinibTargets(queryAnalysis.phase);
         }
         // General search for other queries
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
 }
 
 /**
- * Parse pharmaceutical queries - simplified version
+ * Enhanced pharmaceutical query parsing with typo correction
  */
 function parsePharmaceuticalQuery(query) {
     const lowerQuery = query.toLowerCase();
@@ -91,29 +91,52 @@ function parsePharmaceuticalQuery(query) {
         phase = parseInt(phaseMatch[1]);
     }
     
-    // Extract drug name
+    // Enhanced drug name matching with typo tolerance
     let drugName = null;
+    let correctedDrugName = null;
+    
+    // Exact matches first
     if (lowerQuery.includes('imatinib')) drugName = 'imatinib';
     else if (lowerQuery.includes('gleevec')) drugName = 'imatinib';
+    else if (lowerQuery.includes('pembrolizumab')) drugName = 'pembrolizumab';
+    else if (lowerQuery.includes('keytruda')) drugName = 'pembrolizumab';
+    
+    // Fuzzy matching for common typos
+    else if (lowerQuery.includes('imitanib') || lowerQuery.includes('imatanib') || lowerQuery.includes('imatinab')) {
+        correctedDrugName = 'imatinib';
+        drugName = 'imatinib'; // Treat as imatinib
+    }
+    else if (lowerQuery.includes('pembrolozumab') || lowerQuery.includes('pebrolizumab')) {
+        correctedDrugName = 'pembrolizumab';
+        drugName = 'pembrolizumab';
+    }
+    
+    // Intent detection
+    let intent = 'general';
+    if (lowerQuery.includes('disease') && drugName) {
+        intent = 'drug_diseases';
+    } else if (lowerQuery.includes('phase') && drugName) {
+        intent = 'drug_phase';
+    } else if (drugName) {
+        intent = 'drug_info';
+    }
     
     return {
         drugName,
+        correctedDrugName,
         phase,
-        intent: drugName ? 'drug_info' : 'general',
+        intent,
         originalQuery: query
     };
 }
 
 /**
- * Test with the proven working query structure for Imatinib targets
+ * Imatinib-specific search with comprehensive data
  */
 async function searchImatinibTargets(targetPhase) {
     console.log(`🔍 Searching Imatinib targets (Phase ${targetPhase || 'all'})`);
     
     // Known Imatinib targets: ABL1, KIT, PDGFRA
-    const imatinibTargets = ["ENSG00000097007", "ENSG00000157404", "ENSG00000073756"];
-    
-    // Start with the proven working query structure from OpenTargets docs
     const workingQuery = `
         {
             targets(ensemblIds: ["ENSG00000097007", "ENSG00000157404", "ENSG00000073756"]) {
@@ -137,10 +160,15 @@ async function searchImatinibTargets(targetPhase) {
                         drug {
                             id
                             name
+                            drugType
                         }
                         disease {
                             id
                             name
+                        }
+                        target {
+                            id
+                            approvedSymbol
                         }
                     }
                 }
@@ -149,7 +177,7 @@ async function searchImatinibTargets(targetPhase) {
     `;
     
     try {
-        console.log(`🔎 Testing proven working query for Imatinib targets`);
+        console.log(`🔎 Querying Imatinib targets (ABL1, KIT, PDGFRA)`);
         
         const response = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
             method: 'POST',
@@ -181,6 +209,7 @@ async function searchImatinibTargets(targetPhase) {
 
         const allResults = [];
         let totalKnownDrugs = 0;
+        let imatinibEntries = 0;
         
         targets.forEach((target) => {
             const knownDrugs = target.knownDrugs?.rows || [];
@@ -189,26 +218,31 @@ async function searchImatinibTargets(targetPhase) {
             console.log(`🎯 Target ${target.approvedSymbol}: ${knownDrugs.length} known drugs`);
             
             knownDrugs.forEach((knownDrug, index) => {
-                // Filter for Imatinib-related drugs
+                // Enhanced Imatinib matching
                 const isImatinib = knownDrug.prefName?.toLowerCase().includes('imatinib') ||
-                                 knownDrug.drug?.name?.toLowerCase().includes('imatinib');
+                                 knownDrug.drug?.name?.toLowerCase().includes('imatinib') ||
+                                 knownDrug.prefName?.toLowerCase().includes('gleevec') ||
+                                 knownDrug.drug?.name?.toLowerCase().includes('gleevec');
                 
                 if (!isImatinib) return;
                 
+                imatinibEntries++;
+                
                 // Filter by phase if specified
                 if (targetPhase && knownDrug.phase !== targetPhase) {
+                    console.log(`⏭️ Skipping ${knownDrug.prefName} for ${knownDrug.label} - Phase ${knownDrug.phase} (looking for Phase ${targetPhase})`);
                     return;
                 }
                 
-                console.log(`✅ Found Imatinib entry: ${knownDrug.prefName} for ${knownDrug.label} (Phase ${knownDrug.phase})`);
+                console.log(`✅ Found Imatinib entry: ${knownDrug.prefName} for ${knownDrug.label} (Phase ${knownDrug.phase}, ${knownDrug.ctIds?.length || 0} trials)`);
                 
                 const result = {
                     id: `OT-${target.id}-${knownDrug.drugId}-${knownDrug.diseaseId}-${index}`,
                     database: 'Open Targets',
                     title: `${knownDrug.prefName || 'Imatinib'} for ${knownDrug.label}`,
-                    type: `Clinical Trial - Phase ${knownDrug.phase}`,
+                    type: `Clinical Trial - Phase ${knownDrug.phase} (${knownDrug.status || 'Clinical'})`,
                     status_significance: `Phase ${knownDrug.phase} ${knownDrug.status || 'Clinical'}`,
-                    details: `${knownDrug.prefName} targeting ${target.approvedSymbol} for ${knownDrug.label}. Mechanism: ${knownDrug.mechanismOfAction || 'Kinase inhibitor'}`,
+                    details: createKnownDrugDescription(knownDrug, target),
                     phase: `Phase ${knownDrug.phase}`,
                     status: knownDrug.status || 'Clinical Trial',
                     sponsor: 'Multiple Sponsors',
@@ -230,6 +264,11 @@ async function searchImatinibTargets(targetPhase) {
                     clinical_trial_ids: knownDrug.ctIds || [],
                     clinical_trial_count: knownDrug.ctIds?.length || 0,
                     
+                    // Additional links
+                    drug_link: `https://platform.opentargets.org/drug/${knownDrug.drugId}`,
+                    target_link: `https://platform.opentargets.org/target/${knownDrug.targetId}`,
+                    disease_link: `https://platform.opentargets.org/disease/${knownDrug.diseaseId}`,
+                    
                     raw_data: { knownDrug, target }
                 };
                 
@@ -238,8 +277,17 @@ async function searchImatinibTargets(targetPhase) {
         });
         
         console.log(`✅ Total known drugs found: ${totalKnownDrugs}`);
-        console.log(`✅ Imatinib-filtered results: ${allResults.length}`);
+        console.log(`✅ Total Imatinib entries: ${imatinibEntries}`);
+        console.log(`✅ Phase-filtered results: ${allResults.length}`);
         console.log(`📊 Total clinical trials: ${allResults.reduce((sum, r) => sum + (r.clinical_trial_count || 0), 0)}`);
+        
+        // Sort results by phase and trial count
+        allResults.sort((a, b) => {
+            if (a.clinical_phase !== b.clinical_phase) {
+                return b.clinical_phase - a.clinical_phase; // Higher phases first
+            }
+            return (b.clinical_trial_count || 0) - (a.clinical_trial_count || 0); // More trials first
+        });
         
         return allResults;
         
@@ -250,7 +298,7 @@ async function searchImatinibTargets(targetPhase) {
 }
 
 /**
- * General search - simplified version
+ * Enhanced general search with better error handling
  */
 async function generalOpenTargetsSearch(query, limit = 50) {
     const simpleQuery = `
@@ -266,6 +314,8 @@ async function generalOpenTargetsSearch(query, limit = 50) {
     `;
     
     try {
+        console.log(`🔍 General search for: "${query}"`);
+        
         const response = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
             method: 'POST',
             headers: {
@@ -276,8 +326,19 @@ async function generalOpenTargetsSearch(query, limit = 50) {
             })
         });
 
+        if (!response.ok) {
+            throw new Error(`General search API error: ${response.status}`);
+        }
+
         const data = await response.json();
+        
+        if (data.errors) {
+            console.error('General search GraphQL errors:', data.errors);
+            return []; // Return empty array instead of throwing
+        }
+        
         const hits = data.data?.search?.hits || [];
+        console.log(`📊 General search found ${hits.length} hits`);
         
         const results = hits.slice(0, limit).map((hit, index) => ({
             id: `OT-${hit.entity}-${hit.id}-${index}`,
@@ -302,6 +363,34 @@ async function generalOpenTargetsSearch(query, limit = 50) {
         
     } catch (error) {
         console.error('Error in generalOpenTargetsSearch:', error);
-        throw error;
+        return []; // Return empty array instead of throwing
     }
+}
+
+/**
+ * Create detailed description for known drugs
+ */
+function createKnownDrugDescription(knownDrug, target) {
+    const components = [];
+    
+    if (knownDrug.mechanismOfAction) {
+        components.push(`Mechanism: ${knownDrug.mechanismOfAction}`);
+    } else {
+        components.push(`Target: ${target.approvedSymbol}`);
+    }
+    
+    if (knownDrug.drug?.drugType) {
+        components.push(`Type: ${knownDrug.drug.drugType}`);
+    }
+    
+    if (knownDrug.ctIds?.length) {
+        components.push(`${knownDrug.ctIds.length} clinical trials`);
+    }
+    
+    if (knownDrug.status) {
+        components.push(`Status: ${knownDrug.status}`);
+    }
+    
+    return components.length > 0 ? components.join(' | ') : 
+           `${knownDrug.prefName} targeting ${target.approvedSymbol} for ${knownDrug.label}`;
 }
