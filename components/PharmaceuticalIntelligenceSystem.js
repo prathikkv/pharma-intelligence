@@ -1,7 +1,7 @@
-// 🧠 ENHANCED QUERY INTELLIGENCE SYSTEM (FIXED VERSION)
-    const QueryIntelligence = {
-        // Helper functions for entity extraction
-        extractDrugName: (match) => {
+// 🧠 ENHANCED QUERY INTELLIGENCE SYSTEM (COMPLETELY FIXED)
+    const QueryIntelligence = (() => {
+        // Helper functions defined first
+        const extractDrugName = (match) => {
             if (!match) return null;
             for (let i = 1; i < match.length; i++) {
                 if (match[i] && match[i].length > 2 && !match[i].match(/^\d+$/)) {
@@ -9,9 +9,9 @@
                 }
             }
             return null;
-        },
+        };
 
-        extractTargetName: (match) => {
+        const extractTargetName = (match) => {
             if (!match) return null;
             for (let i = 1; i < match.length; i++) {
                 if (match[i] && match[i].length > 2) {
@@ -19,9 +19,9 @@
                 }
             }
             return null;
-        },
+        };
 
-        extractDiseaseName: (match) => {
+        const extractDiseaseName = (match) => {
             if (!match) return null;
             for (let i = 1; i < match.length; i++) {
                 if (match[i] && match[i].length > 2) {
@@ -29,9 +29,9 @@
                 }
             }
             return null;
-        },
+        };
 
-        extractPhase: (match) => {
+        const extractPhase = (match) => {
             if (!match) return null;
             for (let i = 1; i < match.length; i++) {
                 if (match[i] && match[i].match(/^\d+$/)) {
@@ -39,16 +39,16 @@
                 }
             }
             return null;
-        },
+        };
 
-        calculateConfidence: (match, query) => {
+        const calculateConfidence = (match, query) => {
             const matchLength = match[0].length;
             const queryLength = query.length;
             return Math.min(0.95, (matchLength / queryLength) * 1.3);
-        },
+        };
 
-        // Comprehensive query patterns for all 8 use cases
-        patterns: {
+        // Now define patterns with access to helper functions
+        const patterns = {
             // 1. Drug → Diseases by Phase (ENHANCED FOR IMATINIB PHASE 2)
             DRUG_DISEASES_PHASE: {
                 regex: [
@@ -60,8 +60,8 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'drug',
-                    drug: QueryIntelligence.extractDrugName(match),
-                    phase: QueryIntelligence.extractPhase(match),
+                    drug: extractDrugName(match),
+                    phase: extractPhase(match),
                     action: 'get_diseases_by_phase'
                 }),
                 databases: ['opentargets', 'clinicaltrials'],
@@ -83,7 +83,7 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'drug',
-                    drug: QueryIntelligence.extractDrugName(match),
+                    drug: extractDrugName(match),
                     action: 'get_approved_diseases'
                 }),
                 databases: ['opentargets', 'clinicaltrials'],
@@ -103,7 +103,7 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'drug',
-                    drug: QueryIntelligence.extractDrugName(match),
+                    drug: extractDrugName(match),
                     action: 'get_toxicities'
                 }),
                 databases: ['opentargets', 'drugbank'],
@@ -124,7 +124,7 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'compound',
-                    compound: QueryIntelligence.extractDrugName(match),
+                    compound: extractDrugName(match),
                     action: 'get_targets_and_binding'
                 }),
                 databases: ['opentargets', 'chembl'],
@@ -145,7 +145,7 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'target',
-                    target: QueryIntelligence.extractTargetName(match),
+                    target: extractTargetName(match),
                     action: 'get_associated_diseases'
                 }),
                 databases: ['opentargets'],
@@ -166,7 +166,7 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'target',
-                    target: QueryIntelligence.extractTargetName(match),
+                    target: extractTargetName(match),
                     action: 'get_interacting_partners'
                 }),
                 databases: ['opentargets'],
@@ -187,7 +187,7 @@
                 ],
                 extract: (query, match) => ({
                     entity: 'disease',
-                    disease: QueryIntelligence.extractDiseaseName(match),
+                    disease: extractDiseaseName(match),
                     action: 'get_approved_compounds'
                 }),
                 databases: ['opentargets', 'drugbank'],
@@ -213,14 +213,14 @@
                     'Alzheimer disease research'
                 ]
             }
-        },
+        };
 
         // Main parsing function
-        parseQuery: (query) => {
+        const parseQuery = (query) => {
             const normalizedQuery = query.trim().toLowerCase();
             
             // Try each pattern
-            for (const [intentName, pattern] of Object.entries(QueryIntelligence.patterns)) {
+            for (const [intentName, pattern] of Object.entries(patterns)) {
                 for (const regex of pattern.regex) {
                     const match = normalizedQuery.match(regex);
                     if (match) {
@@ -229,7 +229,7 @@
                             return {
                                 intent: intentName,
                                 ...extracted,
-                                confidence: QueryIntelligence.calculateConfidence(match, normalizedQuery),
+                                confidence: calculateConfidence(match, normalizedQuery),
                                 recommendedDatabases: pattern.databases,
                                 originalQuery: query,
                                 examples: pattern.examples
@@ -249,5 +249,16 @@
                 recommendedDatabases: ['opentargets', 'clinicaltrials'],
                 originalQuery: query
             };
-        }
-    };
+        };
+
+        // Return the public API
+        return {
+            extractDrugName,
+            extractTargetName,
+            extractDiseaseName,
+            extractPhase,
+            calculateConfidence,
+            patterns,
+            parseQuery
+        };
+    })();
