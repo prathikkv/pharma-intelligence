@@ -1,4 +1,4 @@
-// api/search/opentargets.js - FIXED VERSION to get hundreds of results
+// api/search/opentargets.js - DEDUPLICATED VERSION to match website results
 export default async function handler(req, res) {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -33,10 +33,10 @@ export default async function handler(req, res) {
         
         let results = [];
         
-        // For Imatinib specifically, let's get ALL the data
+        // For Imatinib specifically, let's get ALL the data and deduplicate
         if (queryAnalysis.drugName && (queryAnalysis.drugName.toLowerCase() === 'imatinib' || queryAnalysis.correctedDrugName === 'imatinib')) {
-            console.log(`💊 Imatinib comprehensive search (Phase ${queryAnalysis.phase || 'all'})`);
-            results = await searchImatinibComprehensive(queryAnalysis.phase);
+            console.log(`💊 Imatinib comprehensive search with deduplication (Phase ${queryAnalysis.phase || 'all'})`);
+            results = await searchImatinibDeduped(queryAnalysis.phase);
         }
         // General search for other queries
         else {
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
         const endTime = performance.now();
         const responseTime = Math.round(endTime - startTime);
         
-        console.log(`✅ OpenTargets: Returning ${results.length} results in ${responseTime}ms`);
+        console.log(`✅ OpenTargets: Returning ${results.length} unique results in ${responseTime}ms`);
 
         return res.status(200).json({
             results: results,
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
 }
 
 /**
- * Enhanced pharmaceutical query parsing with typo correction
+ * Enhanced pharmaceutical query parsing
  */
 function parsePharmaceuticalQuery(query) {
     const lowerQuery = query.toLowerCase();
@@ -107,30 +107,20 @@ function parsePharmaceuticalQuery(query) {
         drugName = 'imatinib';
     }
     
-    // Intent detection
-    let intent = 'general';
-    if (lowerQuery.includes('disease') && drugName) {
-        intent = 'drug_diseases';
-    } else if (lowerQuery.includes('phase') && drugName) {
-        intent = 'drug_phase';
-    } else if (drugName) {
-        intent = 'drug_info';
-    }
-    
     return {
         drugName,
         correctedDrugName,
         phase,
-        intent,
+        intent: drugName ? 'drug_info' : 'general',
         originalQuery: query
     };
 }
 
 /**
- * COMPREHENSIVE Imatinib search - gets ALL the data
+ * DEDUPLICATED Imatinib search - matches website results exactly
  */
-async function searchImatinibComprehensive(targetPhase) {
-    console.log(`🔍 COMPREHENSIVE Imatinib search (Phase ${targetPhase || 'all'})`);
+async function searchImatinibDeduped(targetPhase) {
+    console.log(`🔍 DEDUPLICATED Imatinib search (Phase ${targetPhase || 'all'})`);
     
     // Query with LARGE size to get all results
     const comprehensiveQuery = `
@@ -210,19 +200,19 @@ async function searchImatinibComprehensive(targetPhase) {
         const targets = data.data?.targets || [];
         console.log(`📊 Found ${targets.length} targets`);
 
-        const allResults = [];
+        // STEP 1: Collect ALL Imatinib entries from all targets
+        const allImatinibEntries = [];
         let totalKnownDrugs = 0;
-        let imatinibEntries = 0;
-        let phaseBreakdown = {};
+        let rawImatinibEntries = 0;
         
         targets.forEach((target, targetIndex) => {
             const knownDrugs = target.knownDrugs?.rows || [];
             totalKnownDrugs += knownDrugs.length;
             
-            console.log(`🎯 Target ${targetIndex + 1} (${target.approvedSymbol}): ${knownDrugs.length} known drugs, Total count: ${target.knownDrugs?.count || 0}`);
+            console.log(`🎯 Target ${targetIndex + 1} (${target.approvedSymbol}): ${knownDrugs.length} known drugs`);
             
-            knownDrugs.forEach((knownDrug, index) => {
-                // Enhanced Imatinib matching - look for ANY imatinib variant
+            knownDrugs.forEach((knownDrug) => {
+                // Enhanced Imatinib matching
                 const drugName = knownDrug.prefName?.toLowerCase() || '';
                 const drugName2 = knownDrug.drug?.name?.toLowerCase() || '';
                 
@@ -235,77 +225,126 @@ async function searchImatinibComprehensive(targetPhase) {
                 
                 if (!isImatinib) return;
                 
-                imatinibEntries++;
+                rawImatinibEntries++;
                 
-                // Track phase breakdown
-                const phase = knownDrug.phase;
-                phaseBreakdown[phase] = (phaseBreakdown[phase] || 0) + 1;
-                
-                // Apply phase filter ONLY if specified
-                if (targetPhase !== null && targetPhase !== undefined && knownDrug.phase !== targetPhase) {
-                    console.log(`⏭️ Skipping ${knownDrug.prefName} for ${knownDrug.label} - Phase ${knownDrug.phase} (looking for Phase ${targetPhase})`);
-                    return;
-                }
-                
-                console.log(`✅ Found: ${knownDrug.prefName} for ${knownDrug.label} (Phase ${knownDrug.phase}, ${knownDrug.ctIds?.length || 0} trials) via ${target.approvedSymbol}`);
-                
-                const result = {
-                    id: `OT-${target.id}-${knownDrug.drugId}-${knownDrug.diseaseId}-${index}`,
-                    database: 'Open Targets',
-                    title: `${knownDrug.prefName || 'Imatinib'} for ${knownDrug.label}`,
-                    type: `Clinical Evidence - Phase ${knownDrug.phase} (${knownDrug.status || 'Clinical'})`,
-                    status_significance: `Phase ${knownDrug.phase} ${knownDrug.status || 'Clinical'}`,
-                    details: createEnhancedDescription(knownDrug, target),
-                    phase: `Phase ${knownDrug.phase}`,
-                    status: knownDrug.status || 'Clinical Evidence',
-                    sponsor: 'Multiple Sponsors',
-                    year: new Date().getFullYear(),
-                    enrollment: knownDrug.ctIds?.length ? `${knownDrug.ctIds.length} trials` : 'Clinical evidence',
-                    link: `https://platform.opentargets.org/evidence/${knownDrug.drugId}/${knownDrug.diseaseId}`,
-                    
-                    // Enhanced comprehensive fields
-                    drug_id: knownDrug.drugId,
-                    drug_name: knownDrug.prefName,
-                    drug_type: knownDrug.drugType || knownDrug.drug?.drugType,
-                    target_id: knownDrug.targetId,
-                    target_symbol: target.approvedSymbol,
-                    target_name: target.approvedName,
-                    disease_id: knownDrug.diseaseId,
-                    disease_name: knownDrug.label,
-                    clinical_phase: knownDrug.phase,
-                    trial_status: knownDrug.status,
-                    mechanism_of_action: knownDrug.mechanismOfAction,
-                    clinical_trial_ids: knownDrug.ctIds || [],
-                    clinical_trial_count: knownDrug.ctIds?.length || 0,
-                    therapeutic_areas: knownDrug.disease?.therapeuticAreas?.map(area => area.name) || [],
-                    is_approved: knownDrug.drug?.isApproved,
-                    
-                    // Additional comprehensive links
-                    drug_link: `https://platform.opentargets.org/drug/${knownDrug.drugId}`,
-                    target_link: `https://platform.opentargets.org/target/${knownDrug.targetId}`,
-                    disease_link: `https://platform.opentargets.org/disease/${knownDrug.diseaseId}`,
-                    
-                    // Clinical trial links
-                    clinical_trials_links: knownDrug.ctIds?.map(ctId => 
-                        `https://clinicaltrials.gov/ct2/show/${ctId}`
-                    ) || [],
-                    
-                    raw_data: { knownDrug, target }
-                };
-                
-                allResults.push(result);
+                // Store all entries with target info for later deduplication
+                allImatinibEntries.push({
+                    ...knownDrug,
+                    sourceTarget: target,
+                    uniqueKey: `${knownDrug.drugId}-${knownDrug.diseaseId}-${knownDrug.phase}` // Unique identifier
+                });
             });
         });
         
-        console.log(`✅ COMPREHENSIVE RESULTS:`);
+        console.log(`📊 Raw data collected: ${rawImatinibEntries} Imatinib entries from ${totalKnownDrugs} total drugs`);
+        
+        // STEP 2: DEDUPLICATE based on drug-disease-phase combination
+        const uniqueEntries = new Map();
+        const duplicateTargets = new Map(); // Track which targets contribute to each unique entry
+        
+        allImatinibEntries.forEach((entry) => {
+            const key = entry.uniqueKey;
+            
+            if (!uniqueEntries.has(key)) {
+                // First time seeing this drug-disease-phase combination
+                uniqueEntries.set(key, entry);
+                duplicateTargets.set(key, [entry.sourceTarget.approvedSymbol]);
+            } else {
+                // This is a duplicate - track the additional target
+                const existingTargets = duplicateTargets.get(key) || [];
+                if (!existingTargets.includes(entry.sourceTarget.approvedSymbol)) {
+                    existingTargets.push(entry.sourceTarget.approvedSymbol);
+                    duplicateTargets.set(key, existingTargets);
+                }
+                
+                // Merge additional data (like more clinical trial IDs)
+                const existing = uniqueEntries.get(key);
+                if (entry.ctIds && entry.ctIds.length > 0 && existing.ctIds) {
+                    // Combine and deduplicate clinical trial IDs
+                    const combinedCtIds = [...new Set([...existing.ctIds, ...entry.ctIds])];
+                    existing.ctIds = combinedCtIds;
+                }
+            }
+        });
+        
+        console.log(`🧹 After deduplication: ${uniqueEntries.size} unique drug-disease-phase combinations`);
+        console.log(`🔗 Duplicate tracking: Found ${duplicateTargets.size} unique associations`);
+        
+        // STEP 3: Apply phase filter and create final results
+        const finalResults = [];
+        let phaseBreakdown = {};
+        
+        for (const [key, entry] of uniqueEntries) {
+            // Track phase breakdown
+            const phase = entry.phase;
+            phaseBreakdown[phase] = (phaseBreakdown[phase] || 0) + 1;
+            
+            // Apply phase filter ONLY if specified
+            if (targetPhase !== null && targetPhase !== undefined && entry.phase !== targetPhase) {
+                continue;
+            }
+            
+            // Get all targets that contribute to this association
+            const contributingTargets = duplicateTargets.get(key) || [entry.sourceTarget.approvedSymbol];
+            
+            console.log(`✅ Unique: ${entry.prefName} for ${entry.label} (Phase ${entry.phase}, ${entry.ctIds?.length || 0} trials) via ${contributingTargets.join('+')}`);
+            
+            const result = {
+                id: `OT-UNIQUE-${entry.drugId}-${entry.diseaseId}-${entry.phase}`,
+                database: 'Open Targets',
+                title: `${entry.prefName || 'Imatinib'} for ${entry.label}`,
+                type: `Clinical Evidence - Phase ${entry.phase} (${entry.status || 'Clinical'})`,
+                status_significance: `Phase ${entry.phase} ${entry.status || 'Clinical'}`,
+                details: createEnhancedDescription(entry, contributingTargets),
+                phase: `Phase ${entry.phase}`,
+                status: entry.status || 'Clinical Evidence',
+                sponsor: 'Multiple Sponsors',
+                year: new Date().getFullYear(),
+                enrollment: entry.ctIds?.length ? `${entry.ctIds.length} trials` : 'Clinical evidence',
+                link: `https://platform.opentargets.org/evidence/${entry.drugId}/${entry.diseaseId}`,
+                
+                // Enhanced comprehensive fields
+                drug_id: entry.drugId,
+                drug_name: entry.prefName,
+                drug_type: entry.drugType || entry.drug?.drugType,
+                target_id: entry.targetId,
+                target_symbols: contributingTargets, // ALL targets that contribute
+                primary_target: entry.sourceTarget.approvedSymbol,
+                disease_id: entry.diseaseId,
+                disease_name: entry.label,
+                clinical_phase: entry.phase,
+                trial_status: entry.status,
+                mechanism_of_action: entry.mechanismOfAction,
+                clinical_trial_ids: entry.ctIds || [],
+                clinical_trial_count: entry.ctIds?.length || 0,
+                therapeutic_areas: entry.disease?.therapeuticAreas?.map(area => area.name) || [],
+                is_approved: entry.drug?.isApproved,
+                
+                // Additional comprehensive links
+                drug_link: `https://platform.opentargets.org/drug/${entry.drugId}`,
+                disease_link: `https://platform.opentargets.org/disease/${entry.diseaseId}`,
+                
+                // Clinical trial links
+                clinical_trials_links: entry.ctIds?.map(ctId => 
+                    `https://clinicaltrials.gov/ct2/show/${ctId}`
+                ) || [],
+                
+                raw_data: { entry, contributingTargets }
+            };
+            
+            finalResults.push(result);
+        }
+        
+        console.log(`✅ FINAL DEDUPLICATED RESULTS:`);
         console.log(`   📊 Total known drugs across all targets: ${totalKnownDrugs}`);
-        console.log(`   💊 Total Imatinib entries found: ${imatinibEntries}`);
+        console.log(`   💊 Raw Imatinib entries found: ${rawImatinibEntries}`);
+        console.log(`   🧹 Unique drug-disease combinations: ${uniqueEntries.size}`);
         console.log(`   🔬 Phase breakdown:`, phaseBreakdown);
-        console.log(`   ✅ Final filtered results: ${allResults.length}`);
-        console.log(`   🏥 Total clinical trials: ${allResults.reduce((sum, r) => sum + (r.clinical_trial_count || 0), 0)}`);
+        console.log(`   ✅ Final filtered results: ${finalResults.length}`);
+        console.log(`   🏥 Total clinical trials: ${finalResults.reduce((sum, r) => sum + (r.clinical_trial_count || 0), 0)}`);
         
         // Sort results by phase (requested phase first), then by trial count
-        allResults.sort((a, b) => {
+        finalResults.sort((a, b) => {
             // If a specific phase was requested, put those first
             if (targetPhase !== null && targetPhase !== undefined) {
                 if (a.clinical_phase === targetPhase && b.clinical_phase !== targetPhase) return -1;
@@ -321,41 +360,45 @@ async function searchImatinibComprehensive(targetPhase) {
             return (b.clinical_trial_count || 0) - (a.clinical_trial_count || 0);
         });
         
-        return allResults;
+        return finalResults;
         
     } catch (error) {
-        console.error('❌ Error in searchImatinibComprehensive:', error);
+        console.error('❌ Error in searchImatinibDeduped:', error);
         throw error;
     }
 }
 
 /**
- * Enhanced description creation
+ * Enhanced description creation with multiple targets
  */
-function createEnhancedDescription(knownDrug, target) {
+function createEnhancedDescription(entry, contributingTargets) {
     const components = [];
     
-    if (knownDrug.mechanismOfAction) {
-        components.push(`Mechanism: ${knownDrug.mechanismOfAction}`);
-    } else {
-        components.push(`Target: ${target.approvedSymbol}`);
+    if (entry.mechanismOfAction) {
+        components.push(`Mechanism: ${entry.mechanismOfAction}`);
+    } else if (contributingTargets.length > 0) {
+        components.push(`Targets: ${contributingTargets.join(', ')}`);
     }
     
-    const drugType = knownDrug.drugType || knownDrug.drug?.drugType;
+    const drugType = entry.drugType || entry.drug?.drugType;
     if (drugType) {
         components.push(`Type: ${drugType}`);
     }
     
-    if (knownDrug.ctIds?.length) {
-        components.push(`${knownDrug.ctIds.length} clinical trials`);
+    if (entry.ctIds?.length) {
+        components.push(`${entry.ctIds.length} clinical trials`);
     }
     
-    if (knownDrug.status) {
-        components.push(`Status: ${knownDrug.status}`);
+    if (entry.status) {
+        components.push(`Status: ${entry.status}`);
+    }
+    
+    if (contributingTargets.length > 1) {
+        components.push(`Multi-target: ${contributingTargets.join('+')}`);
     }
     
     return components.length > 0 ? components.join(' | ') : 
-           `${knownDrug.prefName} targeting ${target.approvedSymbol} for ${knownDrug.label}`;
+           `${entry.prefName} for ${entry.label}`;
 }
 
 /**
