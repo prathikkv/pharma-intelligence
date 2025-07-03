@@ -1,5 +1,5 @@
-// api/search/opentargets.js - FULLY DYNAMIC AI AGENT VERSION
-// NO HARDCODED DATA - Everything queried dynamically from APIs
+// api/search/opentargets.js - FIXED AI AGENT VERSION
+// Properly handles drug ID mapping between OpenTargets and ChEMBL
 
 export default async function handler(req, res) {
     // CORS headers
@@ -82,7 +82,6 @@ export default async function handler(req, res) {
 
 /**
  * 🧠 INTELLIGENT QUERY ANALYSIS - Acts like an AI agent
- * Dynamically discovers drug names, phases, and intent without hardcoded patterns
  */
 async function intelligentQueryAnalysis(query) {
     console.log(`🧠 AI: Analyzing query "${query}"`);
@@ -148,7 +147,7 @@ async function intelligentQueryAnalysis(query) {
 }
 
 /**
- * 🔍 DYNAMIC DRUG DISCOVERY - Finds drugs without hardcoded patterns
+ * 🔍 FIXED DRUG DISCOVERY - Prioritizes OpenTargets native search
  */
 async function discoverDrugsFromQuery(query) {
     console.log(`🔍 Drug Discovery: Analyzing query for potential drugs`);
@@ -156,11 +155,17 @@ async function discoverDrugsFromQuery(query) {
     const drugCandidates = [];
     
     try {
-        // Strategy 1: Direct drug search via OpenTargets
-        const directResults = await searchDirectDrugs(query);
-        drugCandidates.push(...directResults);
+        // Strategy 1: Direct OpenTargets drug search (PRIORITY - gives correct IDs)
+        console.log('🎯 Step 1: OpenTargets direct search');
+        const directResults = await searchOpenTargetsDrugs(query);
+        if (directResults.length > 0) {
+            console.log(`✅ Found ${directResults.length} drugs in OpenTargets`);
+            drugCandidates.push(...directResults);
+            return deduplicateDrugCandidates(drugCandidates); // Return early if found
+        }
         
-        // Strategy 2: Word-by-word analysis for potential drug names
+        // Strategy 2: Word-by-word analysis
+        console.log('🔍 Step 2: Word-by-word analysis');
         const words = query.toLowerCase().split(/\s+/).filter(word => 
             word.length > 3 && 
             !isCommonWord(word) &&
@@ -169,19 +174,23 @@ async function discoverDrugsFromQuery(query) {
         );
         
         for (const word of words) {
-            const wordResults = await searchDirectDrugs(word);
+            const wordResults = await searchOpenTargetsDrugs(word);
             if (wordResults.length > 0) {
+                console.log(`✅ Found drugs for word "${word}"`);
                 drugCandidates.push(...wordResults);
             }
         }
         
-        // Strategy 3: Cross-reference with ChEMBL for additional drug names
-        const chemblResults = await crossReferenceChEMBL(query);
-        drugCandidates.push(...chemblResults);
+        if (drugCandidates.length > 0) {
+            return deduplicateDrugCandidates(drugCandidates);
+        }
         
-        // Deduplicate and rank by confidence
+        // Strategy 3: Fallback - try generic search with different entity types
+        console.log('🔄 Step 3: Fallback generic search');
+        const fallbackResults = await searchFallbackDrugs(query);
+        drugCandidates.push(...fallbackResults);
+        
         const uniqueDrugs = deduplicateDrugCandidates(drugCandidates);
-        
         console.log(`🔍 Drug Discovery: Found ${uniqueDrugs.length} potential drugs`);
         return uniqueDrugs;
         
@@ -192,9 +201,9 @@ async function discoverDrugsFromQuery(query) {
 }
 
 /**
- * 🎯 DIRECT DRUG SEARCH via OpenTargets API
+ * 🎯 OPENTARGETS NATIVE DRUG SEARCH - Uses correct OpenTargets drug IDs
  */
-async function searchDirectDrugs(searchTerm) {
+async function searchOpenTargetsDrugs(searchTerm) {
     try {
         const drugSearchQuery = `
             query searchDrugs($queryString: String!) {
@@ -211,11 +220,14 @@ async function searchDirectDrugs(searchTerm) {
                             drugType
                             isApproved
                             yearOfFirstApproval
+                            maximumClinicalTrialPhase
                         }
                     }
                 }
             }
         `;
+        
+        console.log(`🔎 OpenTargets drug search for: "${searchTerm}"`);
         
         const response = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
             method: 'POST',
@@ -230,78 +242,91 @@ async function searchDirectDrugs(searchTerm) {
             signal: AbortSignal.timeout(10000)
         });
 
-        if (!response.ok) return [];
+        if (!response.ok) {
+            console.log(`❌ OpenTargets search failed: ${response.status}`);
+            return [];
+        }
 
         const data = await response.json();
-        if (data.errors) return [];
+        if (data.errors) {
+            console.log('❌ OpenTargets GraphQL errors:', data.errors);
+            return [];
+        }
 
         const hits = data.data?.search?.hits || [];
+        console.log(`📊 OpenTargets found ${hits.length} drug hits`);
         
         return hits.map(hit => ({
-            id: hit.id,
+            id: hit.id, // This is the correct OpenTargets drug ID
             name: hit.name,
             synonyms: hit.synonyms || [],
             tradeNames: hit.tradeNames || [],
             drugType: hit.drugType,
             isApproved: hit.isApproved,
+            maxPhase: hit.maximumClinicalTrialPhase,
             confidence: calculateDrugConfidence(hit, searchTerm),
             source: 'OpenTargets'
         }));
         
     } catch (error) {
-        console.error('Direct drug search error:', error);
+        console.error('OpenTargets drug search error:', error);
         return [];
     }
 }
 
 /**
- * 🧪 CROSS-REFERENCE with ChEMBL for additional drug discovery
+ * 🔄 FALLBACK DRUG SEARCH - Generic search for drug discovery
  */
-async function crossReferenceChEMBL(query) {
+async function searchFallbackDrugs(query) {
     try {
-        // Extract potential compound names using pattern matching
-        const potentialCompounds = extractPotentialCompounds(query);
-        const chemblResults = [];
-        
-        for (const compound of potentialCompounds) {
-            try {
-                const response = await fetch(
-                    `https://www.ebi.ac.uk/chembl/api/data/molecule/search?q=${encodeURIComponent(compound)}&format=json&limit=5`,
-                    {
-                        headers: { 'Accept': 'application/json' },
-                        signal: AbortSignal.timeout(5000)
-                    }
-                );
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const molecules = data.molecules || [];
-                    
-                    molecules.forEach(mol => {
-                        if (mol.pref_name) {
-                            chemblResults.push({
-                                id: mol.molecule_chembl_id,
-                                name: mol.pref_name,
-                                synonyms: [mol.molecule_chembl_id],
-                                tradeNames: [],
-                                drugType: mol.molecule_type || 'Small molecule',
-                                isApproved: mol.max_phase === 4,
-                                confidence: 0.7,
-                                source: 'ChEMBL'
-                            });
+        const genericQuery = `
+            query genericSearch($queryString: String!) {
+                search(queryString: $queryString) {
+                    hits {
+                        id
+                        name
+                        entity
+                        ... on Drug {
+                            id
+                            name
+                            synonyms
+                            drugType
+                            isApproved
                         }
-                    });
+                    }
                 }
-            } catch (err) {
-                // Silently continue if ChEMBL fails
-                console.warn(`ChEMBL lookup failed for ${compound}:`, err.message);
             }
-        }
+        `;
         
-        return chemblResults;
+        const response = await fetch('https://api.platform.opentargets.org/api/v4/graphql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: genericQuery,
+                variables: { queryString: query }
+            })
+        });
+
+        if (!response.ok) return [];
+
+        const data = await response.json();
+        if (data.errors) return [];
+
+        const drugHits = data.data?.search?.hits?.filter(hit => hit.entity === 'drug') || [];
+        
+        return drugHits.map(hit => ({
+            id: hit.id,
+            name: hit.name,
+            synonyms: hit.synonyms || [],
+            tradeNames: [],
+            drugType: hit.drugType,
+            isApproved: hit.isApproved,
+            confidence: 0.6,
+            source: 'OpenTargets-Generic'
+        }));
         
     } catch (error) {
-        console.error('ChEMBL cross-reference error:', error);
+        console.error('Fallback drug search error:', error);
         return [];
     }
 }
@@ -365,6 +390,8 @@ async function dynamicDrugDiscoverySearch(queryAnalysis, limit) {
  * 🧬 SEARCH DRUG EVIDENCE - Get clinical evidence for a specific drug
  */
 async function searchDrugEvidence(drugId, drugName, targetPhase, limit) {
+    console.log(`🧬 Searching evidence for drug ID: ${drugId}`);
+    
     const evidenceQuery = `
         query getDrugEvidence($drugId: String!, $size: Int!) {
             drug(efoId: $drugId) {
@@ -434,52 +461,50 @@ async function searchDrugEvidence(drugId, drugName, targetPhase, limit) {
     const data = await response.json();
     
     if (data.errors) {
+        console.error('Evidence GraphQL errors:', data.errors);
         throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     }
 
     const drug = data.data?.drug;
-    if (!drug) return [];
+    if (!drug) {
+        console.log(`❌ No drug data found for ID: ${drugId}`);
+        return [];
+    }
     
     const knownDrugs = drug.knownDrugs?.rows || [];
+    console.log(`📊 Found ${knownDrugs.length} known drug entries`);
     
     // Apply phase filter if specified
     const filteredDrugs = targetPhase 
         ? knownDrugs.filter(entry => entry.phase === targetPhase)
         : knownDrugs;
     
+    console.log(`🔍 After phase filter: ${filteredDrugs.length} entries`);
+    
     // Format results
     return filteredDrugs.map(entry => formatEvidenceResult(entry, drugName));
 }
 
 /**
- * 🔧 COMPREHENSIVE DEDUPLICATION - Remove duplicates across all sources
+ * 🔧 COMPREHENSIVE DEDUPLICATION
  */
 function comprehensiveDeduplication(results) {
     const uniqueMap = new Map();
-    const duplicateTracker = new Map();
     
     results.forEach(result => {
-        // Create composite key for deduplication
         const key = `${result.drug_id || result.drug_name}-${result.disease_id || result.disease_name}-${result.clinical_phase}`;
         
         if (!uniqueMap.has(key)) {
             uniqueMap.set(key, result);
-            duplicateTracker.set(key, 1);
         } else {
             // Merge additional data from duplicates
             const existing = uniqueMap.get(key);
-            duplicateTracker.set(key, duplicateTracker.get(key) + 1);
             
             // Merge clinical trial IDs
             if (result.clinical_trial_ids && existing.clinical_trial_ids) {
                 const combinedIds = [...new Set([...existing.clinical_trial_ids, ...result.clinical_trial_ids])];
                 existing.clinical_trial_ids = combinedIds;
                 existing.clinical_trial_count = combinedIds.length;
-            }
-            
-            // Take the best available data
-            if (!existing.mechanism_of_action && result.mechanism_of_action) {
-                existing.mechanism_of_action = result.mechanism_of_action;
             }
         }
     });
@@ -489,7 +514,7 @@ function comprehensiveDeduplication(results) {
 }
 
 /**
- * 📋 FORMAT EVIDENCE RESULT - Convert raw data to standardized format
+ * 📋 FORMAT EVIDENCE RESULT
  */
 function formatEvidenceResult(entry, drugName) {
     return {
@@ -534,7 +559,7 @@ function formatEvidenceResult(entry, drugName) {
 }
 
 /**
- * 🧠 INTELLIGENT GENERAL SEARCH - For non-drug queries
+ * 🧠 INTELLIGENT GENERAL SEARCH
  */
 async function intelligentGeneralSearch(query, limit) {
     const searchQuery = `
@@ -557,10 +582,6 @@ async function intelligentGeneralSearch(query, limit) {
                     ... on Target {
                         approvedSymbol
                         biotype
-                        tractability {
-                            label
-                            value
-                        }
                     }
                 }
             }
@@ -578,7 +599,6 @@ async function intelligentGeneralSearch(query, limit) {
         });
 
         if (!response.ok) return [];
-
         const data = await response.json();
         if (data.errors) return [];
         
@@ -612,9 +632,6 @@ async function intelligentGeneralSearch(query, limit) {
 
 // ============= HELPER FUNCTIONS =============
 
-/**
- * Calculate drug confidence based on query match
- */
 function calculateDrugConfidence(hit, searchTerm) {
     const term = searchTerm.toLowerCase();
     const name = hit.name.toLowerCase();
@@ -626,9 +643,6 @@ function calculateDrugConfidence(hit, searchTerm) {
     return 0.6;
 }
 
-/**
- * Check if word is a common English word
- */
 function isCommonWord(word) {
     const commonWords = [
         'the', 'and', 'for', 'are', 'with', 'this', 'that', 'from', 'they',
@@ -644,39 +658,15 @@ function isCommonWord(word) {
     return commonWords.includes(word.toLowerCase());
 }
 
-/**
- * Check if word is phase-related
- */
 function isPhaseWord(word) {
     return /^(phase|clinical|trial|study|p\d+)$/i.test(word);
 }
 
-/**
- * Check if word is disease-related
- */
 function isDiseaseWord(word) {
     return /^(cancer|tumor|disease|syndrome|disorder|condition)$/i.test(word);
 }
 
-/**
- * Extract potential compound names from query
- */
-function extractPotentialCompounds(query) {
-    // Look for chemical-like names (ends with common drug suffixes)
-    const drugSuffixes = /-?(mab|nib|tinib|cillin|mycin|oxin|ide|ine|ate|ol)$/i;
-    const words = query.split(/\s+/);
-    
-    return words.filter(word => 
-        word.length > 4 && 
-        (drugSuffixes.test(word) || /^[A-Z][a-z]+[A-Z]/.test(word))
-    );
-}
-
-/**
- * Extract disease terms from query
- */
 async function extractDiseaseTerms(query) {
-    // Simple disease term extraction - could be enhanced with medical NLP
     const diseaseKeywords = [
         'cancer', 'carcinoma', 'tumor', 'lymphoma', 'leukemia', 'sarcoma',
         'diabetes', 'alzheimer', 'parkinson', 'depression', 'anxiety',
@@ -695,9 +685,6 @@ async function extractDiseaseTerms(query) {
     return foundDiseases;
 }
 
-/**
- * Deduplicate drug candidates
- */
 function deduplicateDrugCandidates(candidates) {
     const uniqueMap = new Map();
     
@@ -710,12 +697,9 @@ function deduplicateDrugCandidates(candidates) {
     
     return Array.from(uniqueMap.values())
         .sort((a, b) => b.confidence - a.confidence)
-        .slice(0, 10); // Top 10 most confident matches
+        .slice(0, 10);
 }
 
-/**
- * Create dynamic description
- */
 function createDynamicDescription(entry) {
     const components = [];
     
@@ -742,9 +726,6 @@ function createDynamicDescription(entry) {
            `${entry.prefName} for ${entry.label}`;
 }
 
-/**
- * Create intelligent description for general results
- */
 function createIntelligentDescription(hit) {
     const components = [];
     
@@ -768,10 +749,6 @@ function createIntelligentDescription(hit) {
     
     if (hit.therapeuticAreas?.length) {
         components.push(`Areas: ${hit.therapeuticAreas.slice(0, 2).map(area => area.name).join(', ')}`);
-    }
-    
-    if (hit.tractability?.length) {
-        components.push(`Tractability: ${hit.tractability[0].label}`);
     }
     
     return components.length > 0 ? components.join(' | ') : 
